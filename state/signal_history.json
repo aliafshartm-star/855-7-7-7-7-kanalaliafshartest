@@ -71,6 +71,65 @@
       "result": "OPEN",
       "result_price": null,
       "result_date": null
+    },
+    {
+      "type": "pump",
+      "date": "2026-10-16T16:02:18.000499+00:00",
+      "price_at_signal": 0.3349,
+      "score": 30,
+      "entry_low": 0.3332255,
+      "entry_high": 0.3365745,
+      "stop": 0.311457,
+      "tp1": 0.36839,
+      "tp2": 0.40188,
+      "tp3": 0.46886,
+      "forces": {
+        "VolumeSpike": 0,
+        "Breakout": 10,
+        "Momentum": 8,
+        "Social": 7,
+        "Context": 5
+      },
+      "reasons": [
+        "شکست مقاومت ۲۰ روزه",
+        "RSI قوی (60)",
+        "فشار خرید بالا (62%)"
+      ],
+      "result": "OPEN",
+      "result_price": null,
+      "result_date": null
+    }
+  ],
+  "APTUSDT": [
+    {
+      "type": "growth",
+      "date": "2026-10-16T16:01:50.251075+00:00",
+      "price_at_signal": 0.8579,
+      "score": 50,
+      "entry_low": 0.8536105,
+      "entry_high": 0.8621895,
+      "stop": 0.815005,
+      "tp1": 0.900795,
+      "tp2": 0.94369,
+      "tp3": 1.02948,
+      "forces": {
+        "Accumulation": 10,
+        "Volume": 10,
+        "Structure": 10,
+        "Momentum": 10,
+        "Context": 10
+      },
+      "reasons": [
+        "قیمت در میانه رنج",
+        "فاصله مناسب تا سقف رنج",
+        "OBV صعودی (تجمع پول)",
+        "روند صعودی (EMA20 > EMA50)",
+        "RSI متعادل (56)",
+        "RS vs BTC: +9.0%"
+      ],
+      "result": "OPEN",
+      "result_price": null,
+      "result_date": null
     }
   ]
 }
