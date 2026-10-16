@@ -1,5 +1,5 @@
 """
-ViaChart Agent v4 — ۷ نیرو
+ViaChart Agent v4 — ۷ نیرو + احتمال موفقیت
 """
 import os
 import sys
@@ -11,12 +11,14 @@ from datetime import datetime, timezone, timedelta
 
 from data_fetcher import get_top_symbols, get_klines
 from pump_detector import (
-    candles_to_df, analyze_coin, passes_filters, get_signal_tier
+    candles_to_df, analyze_coin, passes_filters, get_signal_tier,
+    atr as atr_calc, get_btc_change, get_fng
 )
 from chart_generator import generate_chart
 from telegram_poster import post_signal
 from signal_history import add_signal, get_all_signals, update_result
 from signal_brain import should_send
+from probability_engine import estimate_probability
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 log = logging.getLogger(__name__)
@@ -146,6 +148,22 @@ async def run():
 
         log.info(f"   📤 ارسال...")
         try:
+            # محاسبه احتمال موفقیت
+            candles = get_klines(symbol, INTERVAL, KLINE_LIMIT)
+            if candles:
+                df_full = candles_to_df(candles)
+                atr_val = atr_calc(df_full).iloc[-1]
+                btc_chg = get_btc_change()["change"]
+                fg = get_fng()
+
+                tp1_prob, tp2_prob, prob_factors = estimate_probability(
+                    pick, df_full, atr_val, btc_chg, fg
+                )
+                pick["tp1_prob"] = tp1_prob
+                pick["tp2_prob"] = tp2_prob
+                pick["prob_factors"] = prob_factors
+                log.info(f"   🎯 احتمال TP1: {tp1_prob}٪ | TP2: {tp2_prob}٪")
+
             chart = generate_chart(symbol, INTERVAL, 150, score_data=pick)
             ok = await post_signal(pick, chart)
 
