@@ -1,5 +1,5 @@
 """
-ViaChart Agent v6 — Fast Scanner + Deep Analysis
+ViaChart Agent v6 — Fast Scanner + Deep Analysis + Debug
 """
 import os
 import sys
@@ -58,7 +58,7 @@ def save_state(state):
 
 
 def is_on_cooldown(state, symbol, sig_type):
-    key = f"{sig_type}_sent"
+    key = sig_type + "_sent"
     last_time = state.get(key, {}).get(symbol)
     if not last_time:
         return False
@@ -73,14 +73,14 @@ def is_on_cooldown(state, symbol, sig_type):
 
 
 def mark_sent(state, symbol, sig_type):
-    key = f"{sig_type}_sent"
+    key = sig_type + "_sent"
     if key not in state:
         state[key] = {}
     state[key][symbol] = datetime.now(timezone.utc).isoformat()
 
 
 def deep_analyze(candidates, btc_df):
-    log.info(f"🔍 تحلیل عمیق {len(candidates)} ارز...")
+    log.info("🔍 تحلیل عمیق " + str(len(candidates)) + " ارز...")
     results = []
 
     for i, coin in enumerate(candidates, 1):
@@ -98,11 +98,11 @@ def deep_analyze(candidates, btc_df):
             results.append(analysis)
 
             if i % 5 == 0:
-                log.info(f"   ... {i}/{len(candidates)}")
+                log.info("   ... " + str(i) + "/" + str(len(candidates)))
 
             time.sleep(0.08)
         except Exception as e:
-            log.warning(f"   ⚠️ {symbol}: {str(e)[:60]}")
+            log.warning("   ⚠️ " + symbol + ": " + str(e)[:60])
             continue
 
     return results
@@ -113,16 +113,28 @@ async def process_growth_signals(all_results, state):
     log.info("🌱 بررسی سیگنال‌های GROWTH")
     log.info("=" * 50)
 
-    passed = [r for r in all_results if passes_growth_filters(r)]
-    passed.sort(key=lambda x: x["growth_score"], reverse=True)
+    # دیباگ فیلترها
+    passed = []
+    for r in all_results:
+        if passes_growth_filters(r):
+            passed.append(r)
+        else:
+            log.info(
+                "   ❌ " + r['symbol'] +
+                ": 24h=" + f"{r['change_24h']:+.1f}" + "% " +
+                "7d=" + f"{r.get('change_7d', 0):+.1f}" + "% " +
+                "vol=$" + f"{r['volume_24h']/1_000_000:.0f}" + "M"
+            )
 
-    log.info(f"📋 {len(passed)} ارز از Growth filters گذشت")
-    log.info(f"\n📊 TOP 10 Growth Score (آستانه: {MIN_GROWTH_SCORE}):")
+    log.info("📋 " + str(len(passed)) + " ارز از Growth filters گذشت")
+
+    passed.sort(key=lambda x: x["growth_score"], reverse=True)
+    log.info("\n📊 TOP 10 Growth Score (آستانه: " + str(MIN_GROWTH_SCORE) + "):")
     for r in passed[:10]:
-        log.info(f"   • {r['symbol']:12s} — {r['growth_score']:3d}/100")
+        log.info("   • " + r['symbol'].ljust(12) + " — " + str(r['growth_score']) + "/100")
 
     candidates = [r for r in passed if r["growth_score"] >= MIN_GROWTH_SCORE]
-    log.info(f"\n🎯 {len(candidates)} ارز Growth ≥ {MIN_GROWTH_SCORE}")
+    log.info("\n🎯 " + str(len(candidates)) + " ارز Growth ≥ " + str(MIN_GROWTH_SCORE))
 
     if not candidates:
         return 0
@@ -132,7 +144,7 @@ async def process_growth_signals(all_results, state):
         symbol = pick["symbol"]
 
         if is_on_cooldown(state, symbol, "growth"):
-            log.info(f"   ⏳ {symbol} در cooldown")
+            log.info("   ⏳ " + symbol + " در cooldown")
             continue
 
         history = get_all_signals(symbol)
@@ -140,7 +152,7 @@ async def process_growth_signals(all_results, state):
         history = get_all_signals(symbol)
 
         decision = should_send_growth(symbol, pick, history)
-        log.info(f"   🎯 {symbol}: {decision['decision']} — {decision['reason']}")
+        log.info("   🎯 " + symbol + ": " + decision['decision'] + " — " + decision['reason'])
 
         if decision["decision"] != "SEND":
             continue
@@ -158,7 +170,7 @@ async def process_growth_signals(all_results, state):
             pick["growth_tp1_prob"] = tp1_prob
             pick["growth_tp2_prob"] = tp2_prob
             pick["growth_prob_factors"] = factors
-            log.info(f"   🧠 احتمال: TP1 {tp1_prob}٪ | TP2 {tp2_prob}٪")
+            log.info("   🧠 احتمال: TP1 " + str(tp1_prob) + "٪ | TP2 " + str(tp2_prob) + "٪")
 
         try:
             chart = generate_chart(symbol, INTERVAL, 150, score_data=pick)
@@ -169,10 +181,10 @@ async def process_growth_signals(all_results, state):
                 mark_sent(state, symbol, "growth")
                 save_state(state)
                 sent += 1
-                log.info(f"   ✅ ارسال Growth")
+                log.info("   ✅ ارسال Growth")
                 await asyncio.sleep(SEND_DELAY)
         except Exception as e:
-            log.error(f"   ❌ {symbol}: {e}")
+            log.error("   ❌ " + symbol + ": " + str(e))
 
     return sent
 
@@ -182,16 +194,28 @@ async def process_pump_signals(all_results, state):
     log.info("🚀 بررسی سیگنال‌های PUMP")
     log.info("=" * 50)
 
-    passed = [r for r in all_results if passes_pump_filters(r)]
-    passed.sort(key=lambda x: x["pump_score"], reverse=True)
+    # دیباگ فیلترها
+    passed = []
+    for r in all_results:
+        if passes_pump_filters(r):
+            passed.append(r)
+        else:
+            log.info(
+                "   ❌ " + r['symbol'] +
+                ": 24h=" + f"{r['change_24h']:+.1f}" + "% " +
+                "7d=" + f"{r.get('change_7d', 0):+.1f}" + "% " +
+                "vol=$" + f"{r['volume_24h']/1_000_000:.0f}" + "M"
+            )
 
-    log.info(f"📋 {len(passed)} ارز از Pump filters گذشت")
-    log.info(f"\n📊 TOP 10 Pump Score (آستانه: {MIN_PUMP_SCORE}):")
+    log.info("📋 " + str(len(passed)) + " ارز از Pump filters گذشت")
+
+    passed.sort(key=lambda x: x["pump_score"], reverse=True)
+    log.info("\n📊 TOP 10 Pump Score (آستانه: " + str(MIN_PUMP_SCORE) + "):")
     for r in passed[:10]:
-        log.info(f"   • {r['symbol']:12s} — {r['pump_score']:3d}/100")
+        log.info("   • " + r['symbol'].ljust(12) + " — " + str(r['pump_score']) + "/100")
 
     candidates = [r for r in passed if r["pump_score"] >= MIN_PUMP_SCORE]
-    log.info(f"\n🎯 {len(candidates)} ارز Pump ≥ {MIN_PUMP_SCORE}")
+    log.info("\n🎯 " + str(len(candidates)) + " ارز Pump ≥ " + str(MIN_PUMP_SCORE))
 
     if not candidates:
         return 0
@@ -201,7 +225,7 @@ async def process_pump_signals(all_results, state):
         symbol = pick["symbol"]
 
         if is_on_cooldown(state, symbol, "pump"):
-            log.info(f"   ⏳ {symbol} در cooldown")
+            log.info("   ⏳ " + symbol + " در cooldown")
             continue
 
         history = get_all_signals(symbol)
@@ -209,7 +233,7 @@ async def process_pump_signals(all_results, state):
         history = get_all_signals(symbol)
 
         decision = should_send_pump(symbol, pick, history)
-        log.info(f"   🎯 {symbol}: {decision['decision']} — {decision['reason']}")
+        log.info("   🎯 " + symbol + ": " + decision['decision'] + " — " + decision['reason'])
 
         if decision["decision"] != "SEND":
             continue
@@ -227,7 +251,7 @@ async def process_pump_signals(all_results, state):
             pick["pump_tp1_prob"] = tp1_prob
             pick["pump_tp2_prob"] = tp2_prob
             pick["pump_prob_factors"] = factors
-            log.info(f"   🧠 احتمال: TP1 {tp1_prob}٪ | TP2 {tp2_prob}٪")
+            log.info("   🧠 احتمال: TP1 " + str(tp1_prob) + "٪ | TP2 " + str(tp2_prob) + "٪")
 
         try:
             chart = generate_chart(symbol, INTERVAL, 150, score_data=pick)
@@ -238,10 +262,10 @@ async def process_pump_signals(all_results, state):
                 mark_sent(state, symbol, "pump")
                 save_state(state)
                 sent += 1
-                log.info(f"   ✅ ارسال Pump")
+                log.info("   ✅ ارسال Pump")
                 await asyncio.sleep(SEND_DELAY)
         except Exception as e:
-            log.error(f"   ❌ {symbol}: {e}")
+            log.error("   ❌ " + symbol + ": " + str(e))
 
     return sent
 
@@ -257,7 +281,7 @@ async def run():
     if not all_symbols:
         log.error("❌ ارزی دریافت نشد")
         return
-    log.info(f"📥 {len(all_symbols)} ارز دریافت شد")
+    log.info("📥 " + str(len(all_symbols)) + " ارز دریافت شد")
 
     candidates = fast_scan(all_symbols)
     if not candidates:
@@ -278,10 +302,10 @@ async def run():
 
     elapsed = time.time() - start_time
 
-    log.info(f"\n{'=' * 50}")
-    log.info(f"✅ جمع: {growth_sent} Growth + {pump_sent} Pump")
-    log.info(f"⏱️ زمان کل: {elapsed:.1f} ثانیه")
-    log.info(f"{'=' * 50}")
+    log.info("\n" + "=" * 50)
+    log.info("✅ جمع: " + str(growth_sent) + " Growth + " + str(pump_sent) + " Pump")
+    log.info("⏱️ زمان کل: " + str(round(elapsed, 1)) + " ثانیه")
+    log.info("=" * 50)
 
 
 def main():
@@ -290,7 +314,7 @@ def main():
         asyncio.run(run())
         log.info("🎉 اجرا تمام شد")
     except Exception as e:
-        log.error(f"❌ خطای کلی: {e}", exc_info=True)
+        log.error("❌ خطای کلی: " + str(e), exc_info=True)
         sys.exit(1)
 
 
