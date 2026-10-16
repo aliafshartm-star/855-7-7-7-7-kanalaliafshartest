@@ -1,3 +1,6 @@
+"""
+ارسال سیگنال به کانال — قالب اصلی فارسی
+"""
 import os
 import logging
 
@@ -7,8 +10,8 @@ from telegram.constants import ParseMode
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 log = logging.getLogger(__name__)
 
-CHANNEL_ID = os.environ.get("TELEGRAM_CHANNEL_ID", "@viachart_app")
-CHANNEL_HANDLE = "@viachart_app"
+CHANNEL_ID = os.environ.get("TELEGRAM_CHANNEL_ID", "@aliafshartm2")
+CHANNEL_HANDLE = os.environ.get("TELEGRAM_CHANNEL_HANDLE", "@aliafshartm2")
 
 
 def _fmt(p):
@@ -39,7 +42,7 @@ def _full_name(symbol):
         "NEAR": "Near", "ATOM": "Cosmos", "APT": "Aptos",
         "ARB": "Arbitrum", "OP": "Optimism", "SUI": "Sui",
         "INJ": "Injective", "TIA": "Celestia", "PEPE": "Pepe",
-        "WIF": "dogwifhat", "FET": "Fetch.ai",
+        "WIF": "dogwifhat", "FET": "Fetch.ai", "STRK": "Starknet",
     }
     return mapping.get(symbol, symbol)
 
@@ -51,8 +54,8 @@ def build_signal_post(a):
     price = a["price"]
     score = a["score"]
     change_24h = a.get("change_24h", 0)
-    forces = a.get("forces", {})
     reasons = a.get("reasons", [])
+    forces = a.get("forces", {})
 
     entry_low = a["entry_low"]
     entry_high = a["entry_high"]
@@ -61,21 +64,18 @@ def build_signal_post(a):
     tp2 = a["tp2"]
     tp3 = a["tp3"]
 
-    if score >= 100:
-        tier = "TIER 1"
-    elif score >= 80:
-        tier = "TIER 2"
+    if score >= 110:
+        tier = "TIER 1 🔥"
+    elif score >= 95:
+        tier = "TIER 2 🟢"
     else:
-        tier = "TIER 3"
-
-    change_emoji = "UP" if change_24h >= 0 else "DOWN"
-    change_sign = "+" if change_24h >= 0 else ""
+        tier = "TIER 3 🟡"
 
     reason_lines = ""
     for r in reasons[:5]:
-        reason_lines += "- " + r + "\n"
+        reason_lines += "🔹 " + r + "\n"
     if not reason_lines:
-        reason_lines = "- Technical analysis\n"
+        reason_lines = "🔹 تحلیل تکنیکال\n"
 
     f1 = forces.get("Volume", 0)
     f2 = forces.get("Trend", 0)
@@ -86,50 +86,49 @@ def build_signal_post(a):
     f7 = forces.get("Trending", 0)
 
     parts = []
-    parts.append("<b>ViaChart SPOT | " + symbol + "/USDT</b>")
+    parts.append("🟢 <b>" + symbol + "/USDT</b> | " + tier)
     parts.append("")
-    parts.append("Score: <b>" + str(score) + "/140</b> (" + tier + ")")
-    parts.append("Timeframe: 1-7 days")
+    parts.append("🎯 امتیاز: <b>" + str(score) + "/140</b>")
     parts.append("")
-    parts.append("-------------------")
-    parts.append("<b>Trading Plan</b>")
-    parts.append("-------------------")
-    parts.append("Entry: <b>" + _fmt(entry_low) + " - " + _fmt(entry_high) + "</b>")
+    parts.append("━━━━━━━━━━━━━━━")
+    parts.append("💰 <b>پلن معاملاتی</b>")
+    parts.append("━━━━━━━━━━━━━━━")
+    parts.append("🎯 ورود: <b>" + _fmt(entry_low) + " - " + _fmt(entry_high) + "</b>")
     parts.append("")
-    parts.append("Targets:")
+    parts.append("✅ <b>اهداف:</b>")
     parts.append("   TP1: <b>" + _fmt(tp1) + "</b> (" + _pct(entry_high, tp1) + ")")
     parts.append("   TP2: <b>" + _fmt(tp2) + "</b> (" + _pct(entry_high, tp2) + ")")
     parts.append("   TP3: <b>" + _fmt(tp3) + "</b> (" + _pct(entry_high, tp3) + ")")
     parts.append("")
-    parts.append("Stop Loss: <b>" + _fmt(stop) + "</b> (" + _pct(entry_high, stop) + ")")
+    parts.append("🛑 حد ضرر: <b>" + _fmt(stop) + "</b> (" + _pct(entry_high, stop) + ")")
     parts.append("")
-    parts.append("-------------------")
-    parts.append("<b>Why this signal?</b>")
-    parts.append("-------------------")
+    parts.append("━━━━━━━━━━━━━━━")
+    parts.append("💡 <b>چرا این سیگنال؟</b>")
+    parts.append("━━━━━━━━━━━━━━━")
     parts.append(reason_lines.rstrip())
     parts.append("")
-    parts.append("-------------------")
-    parts.append("<b>7 Forces Score</b>")
-    parts.append("-------------------")
-    parts.append("Volume: " + str(f1) + "/20")
-    parts.append("Trend: " + str(f2) + "/20")
-    parts.append("Momentum: " + str(f3) + "/20")
-    parts.append("Regime: " + str(f4) + "/20")
-    parts.append("Liquidity: " + str(f5) + "/20")
-    parts.append("BuyPressure: " + str(f6) + "/20")
-    parts.append("Trending: " + str(f7) + "/20")
+    parts.append("━━━━━━━━━━━━━━━")
+    parts.append("📊 <b>امتیاز ۷ نیرو</b>")
+    parts.append("━━━━━━━━━━━━━━━")
+    parts.append("📈 حجم: " + str(f1) + "/20")
+    parts.append("📊 روند: " + str(f2) + "/20")
+    parts.append("🔥 مومنتوم: " + str(f3) + "/20")
+    parts.append("🌊 بازار: " + str(f4) + "/20")
+    parts.append("💧 نقدینگی: " + str(f5) + "/20")
+    parts.append("💚 فشار خرید: " + str(f6) + "/20")
+    parts.append("🔥 ترند: " + str(f7) + "/20")
     parts.append("")
-    parts.append("-------------------")
-    parts.append("<b>Risk Management</b>")
-    parts.append("-------------------")
-    parts.append("- Spot only (no leverage)")
-    parts.append("- Max 1% risk per trade")
-    parts.append("- Move SL to entry after TP1")
-    parts.append("- Not financial advice - DYOR")
+    parts.append("━━━━━━━━━━━━━━━")
+    parts.append("🛡️ <b>مدیریت ریسک</b>")
+    parts.append("━━━━━━━━━━━━━━━")
+    parts.append("• فقط اسپات (بدون اهرم)")
+    parts.append("• حداکثر ۱٪ ریسک در هر معامله")
+    parts.append("• بعد از TP1 حد ضرر رو به ورود بیار")
+    parts.append("• توصیه مالی نیست — DYOR")
     parts.append("")
-    parts.append("Channel: " + CHANNEL_HANDLE)
+    parts.append("📢 " + CHANNEL_HANDLE)
     parts.append("")
-    parts.append("#ViaChart #" + symbol + " #" + full_name + " #Crypto #Spot #Signal")
+    parts.append("#" + symbol + " #" + full_name + " #Crypto #Spot #Signal")
 
     return "\n".join(parts)
 
@@ -148,7 +147,7 @@ async def send_post(text, chart_path=None, disable_notification=False):
                     parse_mode=ParseMode.HTML,
                     disable_notification=disable_notification,
                 )
-            log.info("Post with photo sent")
+            log.info("✅ پست با عکس ارسال شد")
 
             if len(text) > 1024:
                 await bot.send_message(
@@ -164,15 +163,15 @@ async def send_post(text, chart_path=None, disable_notification=False):
                 parse_mode=ParseMode.HTML,
                 disable_notification=disable_notification,
             )
-            log.info("Text post sent")
+            log.info("✅ پست متنی ارسال شد")
         return True
     except Exception as e:
-        log.error(f"Send error: {e}")
+        log.error(f"❌ خطا در ارسال: {e}")
         return False
 
 
 async def post_signal(analysis_data, chart_path=None):
-    log.info(f"Building signal post for {analysis_data['symbol']}...")
+    log.info(f"📝 ساخت پست سیگنال برای {analysis_data['symbol']}...")
     post = build_signal_post(analysis_data)
     log.info(f"\n{post}\n")
     return await send_post(post, chart_path=chart_path)
