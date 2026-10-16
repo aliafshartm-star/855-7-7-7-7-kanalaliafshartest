@@ -26,7 +26,7 @@ os.makedirs("state", exist_ok=True)
 
 MIN_SCORE = 60
 COOLDOWN_HOURS = 24
-TOP_SCAN = 100
+TOP_SCAN = 200
 INTERVAL = "4h"
 KLINE_LIMIT = 200
 SEND_DELAY = 20
