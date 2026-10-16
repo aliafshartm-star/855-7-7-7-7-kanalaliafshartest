@@ -1,11 +1,12 @@
 """
-ارسال سیگنال به کانال — قالب اصلی فارسی
+ارسال سیگنال به کانال — قالب فارسی
 """
 import os
 import logging
 
 from telegram import Bot, InputFile
 from telegram.constants import ParseMode
+from telegram.error import TimedOut, NetworkError
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 log = logging.getLogger(__name__)
@@ -51,9 +52,7 @@ def build_signal_post(a):
     symbol_raw = a["symbol"]
     symbol = symbol_raw.replace("USDT", "")
     full_name = _full_name(symbol)
-    price = a["price"]
     score = a["score"]
-    change_24h = a.get("change_24h", 0)
     reasons = a.get("reasons", [])
     forces = a.get("forces", {})
 
@@ -146,6 +145,9 @@ async def send_post(text, chart_path=None, disable_notification=False):
                     caption=caption,
                     parse_mode=ParseMode.HTML,
                     disable_notification=disable_notification,
+                    read_timeout=60,
+                    write_timeout=60,
+                    connect_timeout=30,
                 )
             log.info("✅ پست با عکس ارسال شد")
 
@@ -165,6 +167,12 @@ async def send_post(text, chart_path=None, disable_notification=False):
             )
             log.info("✅ پست متنی ارسال شد")
         return True
+    except TimedOut:
+        log.warning(f"⚠️ Timeout در ارسال — رد شد")
+        return False
+    except NetworkError as e:
+        log.error(f"❌ خطای شبکه: {e}")
+        return False
     except Exception as e:
         log.error(f"❌ خطا در ارسال: {e}")
         return False
