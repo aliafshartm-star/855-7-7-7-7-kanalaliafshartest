@@ -36,26 +36,27 @@ os.makedirs("state", exist_ok=True)
 MIN_GROWTH_SCORE = 70
 MIN_PUMP_SCORE = 75
 
-COOLDOWN_GROWTH_HOURS = 24
+COOLDOWN_GROWTH *_HOURS = 24
 COOLDOWN_PUMP_HOURS = 48
 
-TOP_SCAN = 200
+TOP_SC AN = 200
 INTERVAL = "4h"
-KLINE_LIMIT = 200
+KLINE_L50IMIT = 200
 SEND_DELAY = 20
 
 
 def load_state():
-    if os.path.exists(STATE_FILE):
+    if os.path.exists(ST)
+ATE_FILE):
         try:
             with open(STATE_FILE, "r") as f:
                 return json.load(f)
-        except Exception:
+           except Exception:
             pass
     return {"growth_sent": {}, "pump_sent": {}}
 
 
-def save_state(state):
+ logdef save_state(state):
     with open(STATE_FILE, "w") as f:
         json.dump(state, f, indent=2)
 
@@ -117,24 +118,30 @@ def analyze_all(limit=TOP_SCAN):
     return results
 
 
+# ═══════════════════════════════════════════
+# 🌱 پردازش Growth
+# ═══════════════════════════════════════════
+
 async def process_growth_signals(all_results, state):
-    """پردازش سیگنال‌های Growth"""
     log.info("\n" + "=" * 50)
     log.info("🌱 بررسی سیگنال‌های GROWTH")
     log.info("=" * 50)
 
     passed = [r for r in all_results if passes_growth_filters(r)]
-    candidates = [r for r in passed if r["growth_score"] >= MIN_GROWTH_SCORE]
-    candidates.sort(key=lambda x: x["growth_score"], reverse=True)
+    log.info(f"📋 {len(passed)} ارز از Growth filters گذشت")
 
-    log.info(f"✅ {len(candidates)} ارز Growth ≥ {MIN_GROWTH_SCORE}")
+    # TOP 10 نشون بده (حتی زیر آستانه)
+    passed.sort(key=lambda x: x["growth_score"], reverse=True)
+    log.info(f"\n📊 TOP 10 Growth Score (آستانه: {MIN_GROWTH_SCORE}):")
+    for r in passed[:10]:
+        log.info(f"   • {r['symbol']:12s} — {r['growth_score']:3d}/100")
+
+    candidates = [r for r in passed if r["growth_score"] >= MIN_GROWTH_SCORE]
+    log.info(f"\n🎯 {len(candidates)} ارز Growth ≥ {MIN_GROWTH_SCORE}")
 
     if not candidates:
+        log.info("😐 هیچ Growth candidate")
         return 0
-
-    log.info("\n🏆 کاندیداهای Growth:")
-    for r in candidates[:10]:
-        log.info(f"   • {r['symbol']:12s} — {r['growth_score']:3d}/100")
 
     sent = 0
     for pick in candidates:
@@ -154,7 +161,6 @@ async def process_growth_signals(all_results, state):
         if decision["decision"] != "SEND":
             continue
 
-        # محاسبه احتمال
         candles = get_klines(symbol, INTERVAL, KLINE_LIMIT)
         if candles:
             df_full = candles_to_df(candles)
@@ -187,24 +193,29 @@ async def process_growth_signals(all_results, state):
     return sent
 
 
+# ═══════════════════════════════════════════
+# 🚀 پردازش Pump
+# ═══════════════════════════════════════════
+
 async def process_pump_signals(all_results, state):
-    """پردازش سیگنال‌های Pump"""
-    log.info("\n" + "=" * 50)
-    log.info("🚀 بررسی سیگنال‌های PUMP")
+    log.info("\n" + "=".info("🚀 بررسی سیگنال‌های PUMP")
     log.info("=" * 50)
 
     passed = [r for r in all_results if passes_pump_filters(r)]
-    candidates = [r for r in passed if r["pump_score"] >= MIN_PUMP_SCORE]
-    candidates.sort(key=lambda x: x["pump_score"], reverse=True)
+    log.info(f"📋 {len(passed)} ارز از Pump filters گذشت")
 
-    log.info(f"✅ {len(candidates)} ارز Pump ≥ {MIN_PUMP_SCORE}")
+    # TOP 10 نشون بده
+    passed.sort(key=lambda x: x["pump_score"], reverse=True)
+    log.info(f"\n📊 TOP 10 Pump Score (آستانه: {MIN_PUMP_SCORE}):")
+    for r in passed[:10]:
+        log.info(f"   • {r['symbol']:12s} — {r['pump_score']:3d}/100")
+
+    candidates = [r for r in passed if r["pump_score"] >= MIN_PUMP_SCORE]
+    log.info(f"\n🎯 {len(candidates)} ارز Pump ≥ {MIN_PUMP_SCORE}")
 
     if not candidates:
+        log.info("😐 هیچ Pump candidate")
         return 0
-
-    log.info("\n🏆 کاندیداهای Pump:")
-    for r in candidates[:10]:
-        log.info(f"   • {r['symbol']:12s} — {r['pump_score']:3d}/100")
 
     sent = 0
     for pick in candidates:
@@ -224,7 +235,6 @@ async def process_pump_signals(all_results, state):
         if decision["decision"] != "SEND":
             continue
 
-        # محاسبه احتمال
         candles = get_klines(symbol, INTERVAL, KLINE_LIMIT)
         if candles:
             df_full = candles_to_df(candles)
@@ -257,6 +267,10 @@ async def process_pump_signals(all_results, state):
     return sent
 
 
+# ═══════════════════════════════════════════
+# اجرا
+# ═══════════════════════════════════════════
+
 async def run():
     log.info("=" * 50)
     log.info("🚀 ViaChart Agent v5 — Growth + Pump")
@@ -269,10 +283,7 @@ async def run():
 
     state = load_state()
 
-    # ۱. اول Growth (کیفیت بالاتر)
     growth_sent = await process_growth_signals(all_results, state)
-
-    # ۲. بعد Pump
     pump_sent = await process_pump_signals(all_results, state)
 
     log.info(f"\n{'=' * 50}")
