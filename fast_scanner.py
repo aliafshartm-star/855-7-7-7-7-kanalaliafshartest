@@ -15,6 +15,13 @@ MAX_WORKERS = 15
 FAST_INTERVAL = "1h"
 FAST_LIMIT = 30
 MIN_FAST_SCORE = 3
+MIN_VOLUME = 10_000_000
+
+STABLECOINS = [
+    "USDC", "FDUSD", "TUSD", "BUSD", "DAI", "USDP", "USTC", "USDD", "PYUSD",
+    "USD1", "RLUSD", "XAUT", "PAXG", "USDE", "SUSDE", "USDF", "GUSD", "USDS",
+    "XUSD", "USDT"
+]
 
 
 def fetch_parallel(coin_list, interval, limit):
@@ -43,6 +50,15 @@ def fetch_parallel(coin_list, interval, limit):
 
 
 def quick_scan_coin(coin, candles):
+    # فیلتر حجم
+    if coin.get("volume_24h", 0) < MIN_VOLUME:
+        return 0, []
+
+    # فیلتر استیبل‌کوین
+    base = coin["symbol"].replace("USDT", "")
+    if base in STABLECOINS:
+        return 0, []
+
     if len(candles) < 20:
         return 0, []
 
