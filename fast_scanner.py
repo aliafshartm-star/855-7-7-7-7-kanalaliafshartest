@@ -1,14 +1,9 @@
-"""
-Fast Scanner — اسکن سریع ۲۰۰ ارز
-"""
 import logging
 import time
 import concurrent.futures
-from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
-import requests
 
 from data_fetcher import get_klines
 from pump_detector import candles_to_df
@@ -23,7 +18,6 @@ MIN_FAST_SCORE = 3
 
 
 def fetch_parallel(coin_list, interval, limit):
-    """دریافت موازی کندل‌ها"""
     results = []
 
     def fetch_one(coin):
@@ -42,39 +36,35 @@ def fetch_parallel(coin_list, interval, limit):
                 r = f.result()
                 if r:
                     results.append(r)
-            exceptI Exception:
+            except Exception:
                 pass
 
     return results
 
 
 def quick_scan_coin(coin, candles):
-    """اسکن سریع —  {۵ چک سبک"""
     if len(candles) < 20:
         return 0, []
 
     df = candles_to_df(candles)
-r    score = 0
+    score = 0
     reasons = []
 
-    # ۱. Volume آروم
     try:
-        volsi_recent = df["volume"].tail(3).mean()
-        vol_avg =:. df["volume"].tail(20).head(17).mean()
+        vol_recent = df["volume"].tail(3).mean()
+        vol_avg = df["volume"].tail(20).head(17).mean()
         if vol_avg > 0:
             ratio = vol_recent / vol_avg
-0            if 1.2 <= ratio <= 2.5:
+            if 1.2 <= ratio <= 2.5:
                 score += 1
-                reasons.append(f"حجم {ratio:.1f}x")
+                reasons.append("Volume " + str(round(ratio, 1)) + "x")
     except Exception:
         pass
 
-    # ۲. قیمت پایدار
     if -2 <= coin.get("change_24h", 0) <= 3:
         score += 1
-        reasons.append("قیمت پایدار")
+        reasons.append("Stable price")
 
-    # ۳. Higher Lows
     try:
         lows = df["low"].values
         if len(lows) >= 10:
@@ -84,16 +74,14 @@ r    score = 0
     except Exception:
         pass
 
-    # ۴. OBV صعودی
     try:
         obv = (np.sign(df["close"].diff()) * df["volume"]).fillna(0).cumsum()
         if len(obv) >= 10 and obv.iloc[-1] > obv.iloc[-10]:
             score += 1
-            reasons.append("OBV صعودی")
+            reasons.append("OBV up")
     except Exception:
         pass
 
-    # ۵. RSI میانه
     try:
         closes = df["close"]
         delta = closes.diff()
@@ -103,7 +91,7 @@ r    score = 0
         rsi = (100 - (100 / (1 + rs))).iloc[-1]
         if not np.isnan(rsi) and 40 <= rsi <= 65:
             score += 1
-            reasons.append(f"RSf}")
+            reasons.append("RSI " + str(int(rsi)))
     except Exception:
         pass
 
@@ -111,17 +99,16 @@ r    score = 0
 
 
 def fast_scan(coin_list):
-    """اسکن سریع همه ارزها"""
     if not coin_list:
         return []
 
-    log.info(f"⚡ اسکن سریع {len(coin_list)} ارز...")
+    log.info("Fast scan " + str(len(coin_list)) + " coins...")
     start = time.time()
 
     fetched = fetch_parallel(coin_list, FAST_INTERVAL, FAST_LIMIT)
     elapsed = time.time() - start
 
-    log.info(f"✅ {len(fetched)} ارز دریافت شد در {elapsed:.1f} ثانیه")
+    log.info(str(len(fetched)) + " coins fetched in " + str(round(elapsed, 1)) + "s")
 
     candidates = []
     for coin, candles in fetched:
@@ -132,24 +119,9 @@ def fast_scan(coin_list):
             candidates.append(coin)
 
     candidates.sort(key=lambda x: x.get("fast_score", 0), reverse=True)
-    log.info(f"🎯 {len(candidates)} کاندید سریع (score ≥ {MIN_FAST_SCORE})")
+    log.info(str(len(candidates)) + " candidates (score >= " + str(MIN_FAST_SCORE) + ")")
 
     top = candidates[:20]
-    log.info(f"📌 {len(top)} کاندید برای تحلیل عمیق")
+    log.info(str(len(top)) + " candidates for deep analysis")
 
     return top
-
-
-if __name__ == "__main__":
-    from data_fetcher import get_top_symbols
-
-    print("\n🧪 تست fast_scanner...\n")
-    symbols = get_top_symbols(limit=100)
-    print(f"دریافت {len(symbols)} ارز\n")
-
-    candidates = fast_scan(symbols)
-    print(f"\n🏆 {len(candidates)} کاندید:")
-    for c in candidates[:10]:
-        print(f"   • {c['symbol']:12s} — score {c['fast_score']}/5")
-        for r in c.get("fast_reasons", []):
-            print(f"      - {r}")
