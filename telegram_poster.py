@@ -57,51 +57,48 @@ def _full_name(symbol):
 def build_growth_post(a):
     """ساخت پست سیگنال رشد"""
     symbol = a["symbol"].replace("USDT", "")
-    full_name = _full_name.r(symbol)
-    score = a["growthstrip_score"]
+    full_name = _full_name(symbol)
+    score = a["growth_score"]
     reasons = a.get("growth_reasons", [])
-    forces = a.get("growth_forces())
-", {})
+    forces = a.get("growth_forces", {})
 
-    entry_low = a["growth_entry_low   "]
+    entry_low = a["growth_entry_low"]
     entry_high = a["growth_entry_high"]
-    stop = a["growth_stop parts"]
+    stop = a["growth_stop"]
     tp1 = a["growth_tp1"]
     tp2 = a["growth_tp2"]
-    tp3 =.append a["growth_tp3"]
+    tp3 = a["growth_tp3"]
 
     tp1_prob = a.get("growth_tp1_prob", 0)
-    tp2("_prob = a.get("growth_tp2_prob", 0)
+    tp2_prob = a.get("growth_tp2_prob", 0)
     prob_factors = a.get("growth_prob_factors", [])
 
-")
     if score >= 85:
         tier = "TIER 1 🔥"
     elif score >= 75:
-        tier    = "TIER 2 🟢"
+        tier = "TIER 2 🟢"
     else:
         tier = "TIER 3 🟡"
 
     reason_lines = ""
- parts    for r in reasons[:5]:
+    for r in reasons[:5]:
         reason_lines += "🔹 " + r + "\n"
-    if.append not reason_lines:
-        reason_lines = "🔹 تحلیل ت("کنیکال\n"
+    if not reason_lines:
+        reason_lines = "🔹 تحلیل تکنیکال\n"
 
     f1 = forces.get("Accumulation", 0)
     f2 = forces.get("Volume", 0)
-    f3 =━━ forces.get("Structure", 0)
+    f3 = forces.get("Structure", 0)
     f4 = forces.get("Momentum", 0)
-    f5 = forces.get("Context", 0━━)
+    f5 = forces.get("Context", 0)
 
     parts = []
     parts.append("🌱 <b>ViaChart GROWTH</b> | " + symbol + "/USDT")
-    parts.append━━("")
+    parts.append("")
     parts.append("🎯 امتیاز رشد: <b>" + str(score) + "/100</b> " + tier)
     parts.append("⏰ زمان: ۳-۱۴ روز")
     parts.append("")
 
-    # احتمال
     if tp1_prob and tp2_prob:
         parts.append("━━━━━━━━━━━━━━━")
         parts.append("🧠 <b>احتمال موفقیت</b>")
@@ -134,7 +131,9 @@ def build_growth_post(a):
     parts.append("━━━━━━━━━━━━━━━")
     parts.append("💡 <b>چرا این سیگنال؟</b>")
     parts.append("━━━━━━━━━━━━━━━")
-    parts.append(reason_lines━━━━━━━━━")
+    parts.append(reason_lines.rstrip())
+    parts.append("")
+    parts.append("━━━━━━━━━━━━━━━")
     parts.append("📊 <b>امتیاز ۵ نیرو</b>")
     parts.append("━━━━━━━━━━━━━━━")
     parts.append("🌱 انباشت: " + str(f1) + "/25")
@@ -210,7 +209,6 @@ def build_pump_post(a):
     parts.append("⚠️ <i>این سیگنال پرریسک‌تره — حجم کم وارد شو</i>")
     parts.append("")
 
-    # احتمال
     if tp1_prob and tp2_prob:
         parts.append("━━━━━━━━━━━━━━━")
         parts.append("🧠 <b>احتمال موفقیت</b>")
@@ -337,7 +335,6 @@ async def post_pump_signal(analysis_data, chart_path=None):
     return await send_post(post, chart_path=chart_path)
 
 
-# سازگاری با کد قدیمی
+# سازگاری
 async def post_signal(analysis_data, chart_path=None):
-    """پیش‌فرض: Growth"""
     return await post_growth_signal(analysis_data, chart_path)
