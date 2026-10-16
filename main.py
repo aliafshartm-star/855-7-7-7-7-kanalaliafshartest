@@ -1,7 +1,5 @@
 """
-ViaChart Agent v5 — دو نوع سیگنال:
-  🌱 Growth
-  🚀 Pump
+ViaChart Agent v5 — دو نوع سیگنال: Growth + Pump
 """
 import os
 import sys
@@ -32,31 +30,29 @@ log = logging.getLogger(__name__)
 STATE_FILE = "state/last_sent.json"
 os.makedirs("state", exist_ok=True)
 
-# تنظیمات
 MIN_GROWTH_SCORE = 70
 MIN_PUMP_SCORE = 75
 
-COOLDOWN_GROWTH *_HOURS = 24
+COOLDOWN_GROWTH_HOURS = 24
 COOLDOWN_PUMP_HOURS = 48
 
-TOP_SC AN = 200
+TOP_SCAN = 200
 INTERVAL = "4h"
-KLINE_L50IMIT = 200
+KLINE_LIMIT = 200
 SEND_DELAY = 20
 
 
 def load_state():
-    if os.path.exists(ST)
-ATE_FILE):
+    if os.path.exists(STATE_FILE):
         try:
             with open(STATE_FILE, "r") as f:
                 return json.load(f)
-           except Exception:
+        except Exception:
             pass
     return {"growth_sent": {}, "pump_sent": {}}
 
 
- logdef save_state(state):
+def save_state(state):
     with open(STATE_FILE, "w") as f:
         json.dump(state, f, indent=2)
 
@@ -118,10 +114,6 @@ def analyze_all(limit=TOP_SCAN):
     return results
 
 
-# ═══════════════════════════════════════════
-# 🌱 پردازش Growth
-# ═══════════════════════════════════════════
-
 async def process_growth_signals(all_results, state):
     log.info("\n" + "=" * 50)
     log.info("🌱 بررسی سیگنال‌های GROWTH")
@@ -130,7 +122,6 @@ async def process_growth_signals(all_results, state):
     passed = [r for r in all_results if passes_growth_filters(r)]
     log.info(f"📋 {len(passed)} ارز از Growth filters گذشت")
 
-    # TOP 10 نشون بده (حتی زیر آستانه)
     passed.sort(key=lambda x: x["growth_score"], reverse=True)
     log.info(f"\n📊 TOP 10 Growth Score (آستانه: {MIN_GROWTH_SCORE}):")
     for r in passed[:10]:
@@ -193,18 +184,14 @@ async def process_growth_signals(all_results, state):
     return sent
 
 
-# ═══════════════════════════════════════════
-# 🚀 پردازش Pump
-# ═══════════════════════════════════════════
-
 async def process_pump_signals(all_results, state):
-    log.info("\n" + "=".info("🚀 بررسی سیگنال‌های PUMP")
+    log.info("\n" + "=" * 50)
+    log.info("🚀 بررسی سیگنال‌های PUMP")
     log.info("=" * 50)
 
     passed = [r for r in all_results if passes_pump_filters(r)]
     log.info(f"📋 {len(passed)} ارز از Pump filters گذشت")
 
-    # TOP 10 نشون بده
     passed.sort(key=lambda x: x["pump_score"], reverse=True)
     log.info(f"\n📊 TOP 10 Pump Score (آستانه: {MIN_PUMP_SCORE}):")
     for r in passed[:10]:
@@ -266,10 +253,6 @@ async def process_pump_signals(all_results, state):
 
     return sent
 
-
-# ═══════════════════════════════════════════
-# اجرا
-# ═══════════════════════════════════════════
 
 async def run():
     log.info("=" * 50)
