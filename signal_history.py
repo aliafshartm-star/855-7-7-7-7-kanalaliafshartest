@@ -1,6 +1,5 @@
 """
-Signal History — ذخیره تاریخچه سیگنال‌ها
-و چک کردن TP/Stop
+Signal History v2 — ذخیره با نوع (growth/pump)
 """
 import os
 import json
@@ -29,24 +28,54 @@ def save_history(history):
         json.dump(history, f, indent=2, ensure_ascii=False)
 
 
-def add_signal(symbol, analysis):
+def add_growth_signal(symbol, analysis):
+    """ذخیره سیگنال Growth"""
     history = load_history()
-
     if symbol not in history:
         history[symbol] = []
 
     record = {
+        "type": "growth",
         "date": datetime.now(timezone.utc).isoformat(),
         "price_at_signal": analysis["price"],
-        "score": analysis["score"],
-        "entry_low": analysis["entry_low"],
-        "entry_high": analysis["entry_high"],
-        "stop": analysis["stop"],
-        "tp1": analysis["tp1"],
-        "tp2": analysis["tp2"],
-        "tp3": analysis["tp3"],
-        "forces": analysis.get("forces", {}),
-        "reasons": analysis.get("reasons", []),
+        "score": analysis["growth_score"],
+        "entry_low": analysis["growth_entry_low"],
+        "entry_high": analysis["growth_entry_high"],
+        "stop": analysis["growth_stop"],
+        "tp1": analysis["growth_tp1"],
+        "tp2": analysis["growth_tp2"],
+        "tp3": analysis["growth_tp3"],
+        "forces": analysis.get("growth_forces", {}),
+        "reasons": analysis.get("growth_reasons", []),
+        "result": "OPEN",
+        "result_price": None,
+        "result_date": None,
+    }
+
+    history[symbol].append(record)
+    save_history(history)
+    return record
+
+
+def add_pump_signal(symbol, analysis):
+    """ذخیره سیگنال Pump"""
+    history = load_history()
+    if symbol not in history:
+        history[symbol] = []
+
+    record = {
+        "type": "pump",
+        "date": datetime.now(timezone.utc).isoformat(),
+        "price_at_signal": analysis["price"],
+        "score": analysis["pump_score"],
+        "entry_low": analysis["pump_entry_low"],
+        "entry_high": analysis["pump_entry_high"],
+        "stop": analysis["pump_stop"],
+        "tp1": analysis["pump_tp1"],
+        "tp2": analysis["pump_tp2"],
+        "tp3": analysis["pump_tp3"],
+        "forces": analysis.get("pump_forces", {}),
+        "reasons": analysis.get("pump_reasons", []),
         "result": "OPEN",
         "result_price": None,
         "result_date": None,
@@ -62,92 +91,47 @@ def get_all_signals(symbol):
     return history.get(symbol, [])
 
 
-def get_last_signal(symbol):
-    signals = get_all_signals(symbol)
-    if not signals:
-        return None
-    return signals[-1]
-
-
 def update_result(symbol, current_price):
+    """آپدیت وضعیت همه سیگنال‌های باز"""
     history = load_history()
     signals = history.get(symbol, [])
     if not signals:
         return None
 
-    last = signals[-1]
+    updated = False
+    for last in signals:
+        if "OPEN" not in (last.get("result") or "OPEN"):
+            continue
 
-    tp1 = last.get("tp1", 0)
-    tp2 = last.get("tp2", 0)
-    tp3 = last.get("tp3", 0)
-    stop = last.get("stop", 0)
-    entry = last.get("price_at_signal", 0)
+        tp1 = last.get("tp1", 0)
+        tp2 = last.get("tp2", 0)
+        tp3 = last.get("tp3", 0)
+        stop = last.get("stop", 0)
+        entry = last.get("price_at_signal", 0)
 
-    if current_price >= tp3:
-        last["result"] = "TP3_HIT"
-    elif current_price >= tp2:
-        last["result"] = "TP2_HIT"
-    elif current_price >= tp1:
-        last["result"] = "TP1_HIT"
-    elif current_price <= stop:
-        last["result"] = "STOPPED"
-    else:
-        change = ((current_price - entry) / entry) * 100 if entry > 0 else 0
-        last["result"] = f"OPEN ({change:+.1f}%)"
+        if current_price >= tp3:
+            last["result"] = "TP3_HIT"
+        elif current_price >= tp2:
+            last["result"] = "TP2_HIT"
+        elif current_price >= tp1:
+            last["result"] = "TP1_HIT"
+        elif current_price <= stop:
+            last["result"] = "STOPPED"
+        else:
+            change = ((current_price - entry) / entry) * 100 if entry > 0 else 0
+            last["result"] = f"OPEN ({change:+.1f}%)"
 
-    last["result_price"] = current_price
-    last["result_date"] = datetime.now(timezone.utc).isoformat()
+        if "OPEN (" not in last["result"]:
+            last["result_price"] = current_price
+            last["result_date"] = datetime.now(timezone.utc).isoformat()
+            updated = True
 
-    save_history(history)
-    return last
+    if updated:
+        save_history(history)
+    return signals
 
 
-def build_context_for_ai(symbol, current_analysis):
-    signals = get_all_signals(symbol)
-
-    if not signals:
-        return {
-            "has_history": False,
-            "current": {
-                "price": current_analysis["price"],
-                "score": current_analysis["score"],
-                "forces": current_analysis.get("forces", {}),
-                "reasons": current_analysis.get("reasons", []),
-            },
-            "past_signals": [],
-        }
-
-    update_result(symbol, current_analysis["price"])
-    signals = get_all_signals(symbol)
-
-    past = []
-    for s in signals[-5:]:
-        hours_ago = None
-        try:
-            dt = datetime.fromisoformat(s["date"])
-            hours_ago = (datetime.now(timezone.utc) - dt).total_seconds() / 3600
-        except Exception:
-            pass
-
-        past.append({
-            "date": s["date"],
-            "hours_ago": round(hours_ago, 1) if hours_ago else None,
-            "price_then": s["price_at_signal"],
-            "score_then": s["score"],
-            "result": s.get("result"),
-            "result_price": s.get("result_price"),
-            "entry": s["entry_low"],
-            "tp1": s["tp1"],
-            "stop": s["stop"],
-        })
-
-    return {
-        "has_history": True,
-        "current": {
-            "price": current_analysis["price"],
-            "score": current_analysis["score"],
-            "forces": current_analysis.get("forces", {}),
-            "reasons": current_analysis.get("reasons", []),
-        },
-        "past_signals": past,
-    }
+# سازگاری با کد قدیمی
+def add_signal(symbol, analysis):
+    """پیش‌فرض: Growth"""
+    return add_growth_signal(symbol, analysis)
