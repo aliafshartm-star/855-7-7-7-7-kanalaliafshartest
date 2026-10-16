@@ -462,17 +462,22 @@ def analyze_coin(symbol, cg_id, df, ticker_info, btc_df=None):
     price = df["close"].iloc[-1]
     atr_val = atr(df).iloc[-1]
 
+    # تارگت‌های پویا
     if symbol in ["BTCUSDT", "ETHUSDT"]:
-        stop_pct, tp1_pct, tp2_pct, tp3_pct = 0.03, 0.03, 0.06, 0.10
+        stop_pct = 0.03    # -3%
+        tp1_pct = 0.03     # +3%
+        tp2_pct = 0.06     # +6%
     else:
-        stop_pct, tp1_pct, tp2_pct, tp3_pct = 0.05, 0.075, 0.15, 0.30
+        stop_pct = 0.05    # -5%
+        tp1_pct = 0.05     # +5%
+        tp2_pct = 0.10     # +10%
 
     entry_low = price * 0.995
     entry_high = price * 1.005
     stop = price * (1 - stop_pct)
     tp1 = price * (1 + tp1_pct)
     tp2 = price * (1 + tp2_pct)
-    tp3 = price * (1 + tp3_pct)
+    tp3 = tp2  # حذف شد
 
     change_7d = 0
     if len(df) >= 42:
@@ -517,7 +522,7 @@ def passes_filters(coin):
     entry_mid = (coin["entry_low"] + coin["entry_high"]) / 2
     risk = (entry_mid - coin["stop"]) / entry_mid
     reward = (coin["tp1"] - entry_mid) / entry_mid
-    if risk > 0 and (reward / risk) < 1.3:
+    if risk > 0 and (reward / risk) < 0.9:
         return False
 
     return True
