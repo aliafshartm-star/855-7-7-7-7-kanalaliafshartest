@@ -17,7 +17,10 @@ log = logging.getLogger(__name__)
 BINANCE_API = "https://data-api.binance.vision/api/v3"
 COINGECKO_API = "https://api.coingecko.com/api/v3"
 
-STABLECOINS = ["USDC", "FDUSD", "TUSD", "BUSD", "DAI", "USDP", "USTC", "USDD", "PYUSD"]
+STABLECOINS = [
+    "USDC", "FDUSD", "TUSD", "BUSD", "DAI", "USDP", "USTC", "USDD", "PYUSD",
+    "USD1", "RLUSD", "XAUT", "PAXG", "USDE", "SUSDE", "USDF", "GUSD", "USDS"
+]
 
 
 # ═══════════════════════════════════════════
@@ -165,17 +168,15 @@ def get_btc_dominance():
 
 
 # ═══════════════════════════════════════════
-# 🌱 GROWTH SCORE (0-100)
+# 🌱 GROWTH SCORE
 # ═══════════════════════════════════════════
 
 def detect_accumulation_phase(df):
-    """فاز Accumulation — رنج فشرده قبل رشد"""
     score = 0
     reasons = []
     if len(df) < 90:
         return 0, reasons
 
-    # رنج ۹۰ کندل (۱۵ روز)
     range_high = df["high"].tail(90).max()
     range_low = df["low"].tail(90).min()
     if range_low <= 0:
@@ -185,7 +186,6 @@ def detect_accumulation_phase(df):
     current = df["close"].iloc[-1]
     position = (current - range_low) / (range_high - range_low) if range_high > range_low else 0.5
 
-    # ۱. رنج فشرده (۵-۲۰٪)
     if 0.05 <= range_pct <= 0.20:
         score += 10
         reasons.append(f"رنج فشرده ({range_pct*100:.1f}%) — آماده انفجار")
@@ -195,7 +195,6 @@ def detect_accumulation_phase(df):
     elif range_pct > 0.35:
         score -= 5
 
-    # ۲. قیمت تو میانه رنج
     if 0.35 <= position <= 0.65:
         score += 10
         reasons.append("قیمت در میانه رنج")
@@ -206,7 +205,6 @@ def detect_accumulation_phase(df):
         score += 5
         reasons.append("نزدیک کف رنج")
 
-    # ۳. فاصله مناسب تا سقف
     distance_to_high = (range_high - current) / current if current > 0 else 0
     if 0.03 <= distance_to_high <= 0.15:
         score += 5
@@ -216,7 +214,6 @@ def detect_accumulation_phase(df):
 
 
 def detect_volume_pattern_growth(df):
-    """الگوی حجم برای رشد — آروم ولی صعودی"""
     score = 0
     reasons = []
     if len(df) < 60:
@@ -225,7 +222,6 @@ def detect_volume_pattern_growth(df):
     vol_7d = df["volume"].tail(42).mean()
     vol_30d = df["volume"].tail(180).mean()
 
-    # حجم آروم صعودی (نه spike)
     if vol_30d > 0:
         ratio = vol_7d / vol_30d
         if 1.15 <= ratio <= 1.8:
@@ -236,7 +232,6 @@ def detect_volume_pattern_growth(df):
         elif ratio < 0.8:
             score -= 3
 
-    # OBV صعودی (تجمع پنهانی)
     obv = (np.sign(df["close"].diff()) * df["volume"]).fillna(0).cumsum()
     if len(obv) >= 20:
         obv_start = obv.iloc[-20]
@@ -250,7 +245,6 @@ def detect_volume_pattern_growth(df):
 
 
 def detect_structure_growth(df):
-    """ساختار صعودی — Higher Lows + EMA"""
     score = 0
     reasons = []
     if len(df) < 60:
@@ -261,7 +255,6 @@ def detect_structure_growth(df):
     e20 = ema(closes, 20).iloc[-1]
     e50 = ema(closes, 50).iloc[-1]
 
-    # EMA
     if price > e20 > e50:
         score += 10
         reasons.append("روند صعودی (EMA20 > EMA50)")
@@ -269,7 +262,6 @@ def detect_structure_growth(df):
         score += 5
         reasons.append("قیمت بالای EMA20")
 
-    # Higher Lows
     swing_lows = find_swing_lows(df, lookback=5)
     if len(swing_lows) >= 3:
         last3 = swing_lows[-3:]
@@ -281,7 +273,6 @@ def detect_structure_growth(df):
 
 
 def detect_momentum_growth(df):
-    """مومنتوم آروم — RSI میانه، MACD صعودی"""
     score = 0
     reasons = []
     if len(df) < 30:
@@ -289,7 +280,6 @@ def detect_momentum_growth(df):
 
     closes = df["close"]
 
-    # RSI میانه
     rsi_val = rsi(closes, 14).iloc[-1]
     if not np.isnan(rsi_val):
         if 45 <= rsi_val <= 60:
@@ -299,7 +289,6 @@ def detect_momentum_growth(df):
             score += 5
             reasons.append(f"RSI پایین ({rsi_val:.0f})")
 
-    # MACD
     macd_line, signal_line, histogram = macd(closes)
     if len(histogram) >= 2:
         if histogram.iloc[-1] > 0 and histogram.iloc[-2] <= 0:
@@ -312,11 +301,9 @@ def detect_momentum_growth(df):
 
 
 def detect_context_growth(df, symbol, btc_df=None):
-    """Context — BTC، F&G، نقدینگی، RS"""
     score = 0
     reasons = []
 
-    # BTC
     btc = get_btc_change()
     btc_change = btc["change"]
     if btc_change > 1:
@@ -327,7 +314,6 @@ def detect_context_growth(df, symbol, btc_df=None):
     elif btc_change < -3:
         score -= 5
 
-    # Fear & Greed
     fng = get_fng()
     if 25 <= fng <= 65:
         score += 3
@@ -336,7 +322,6 @@ def detect_context_growth(df, symbol, btc_df=None):
     elif fng > 80:
         score -= 3
 
-    # RS vs BTC
     if btc_df is not None and len(btc_df) >= 42 and len(df) >= 42:
         try:
             btc_change_7d = (btc_df["close"].iloc[-1] / btc_df["close"].iloc[-42]) - 1
@@ -354,7 +339,6 @@ def detect_context_growth(df, symbol, btc_df=None):
 
 
 def detect_growth_score(symbol, cg_id, df, ticker_info, btc_df=None):
-    """امتیاز کامل رشد (0-100)"""
     forces = {}
     all_reasons = []
 
@@ -379,16 +363,14 @@ def detect_growth_score(symbol, cg_id, df, ticker_info, btc_df=None):
     all_reasons.extend(r5)
 
     total = sum(forces.values())
-
     return total, forces, all_reasons
 
 
 # ═══════════════════════════════════════════
-# 🚀 PUMP SCORE (0-100)
+# 🚀 PUMP SCORE
 # ═══════════════════════════════════════════
 
 def detect_volume_spike(df):
-    """Volume Spike — نشانه پامپ"""
     score = 0
     reasons = []
     if len(df) < 20:
@@ -409,7 +391,6 @@ def detect_volume_spike(df):
             score += 8
             reasons.append(f"حجم بالای میانگین ({ratio:.1f}x)")
 
-    # کندل صعودی
     last = df.iloc[-1]
     if last["close"] > last["open"]:
         score += 5
@@ -418,7 +399,6 @@ def detect_volume_spike(df):
 
 
 def detect_breakout(df):
-    """شکست مقاومت ۲۰ روزه"""
     score = 0
     reasons = []
     if len(df) < 40:
@@ -428,12 +408,10 @@ def detect_breakout(df):
     last_close = df["close"].iloc[-1]
     prev_close = df["close"].iloc[-2]
 
-    # کندل قبلی بالای مقاومت بسته شده
     if prev_close > recent_high * 0.99:
         score += 10
         reasons.append("شکست مقاومت ۲۰ روزه")
 
-    # ادامه داره
     if last_close > recent_high:
         score += 10
         reasons.append("بالای مقاومت پایدار")
@@ -442,7 +420,6 @@ def detect_breakout(df):
 
 
 def detect_momentum_pump(df):
-    """مومنتوم قوی — RSI بالا ولی نه overbought"""
     score = 0
     reasons = []
     if len(df) < 30:
@@ -460,7 +437,6 @@ def detect_momentum_pump(df):
         elif rsi_val > 85:
             score -= 10
 
-    # MACD
     macd_line, signal_line, histogram = macd(closes)
     if len(histogram) >= 2:
         if histogram.iloc[-1] > 0 and histogram.iloc[-2] <= 0:
@@ -470,7 +446,6 @@ def detect_momentum_pump(df):
             score += 5
             reasons.append("MACD صعودی")
 
-    # Stochastic
     k, d = stochastic(df)
     if len(k) >= 1 and len(d) >= 1:
         k_last = k.iloc[-1]
@@ -484,7 +459,6 @@ def detect_momentum_pump(df):
 
 
 def detect_social_hype(symbol):
-    """Hype و Trending"""
     score = 0
     reasons = []
 
@@ -497,7 +471,6 @@ def detect_social_hype(symbol):
     else:
         score += 2
 
-    # Buy Pressure
     try:
         url = f"{BINANCE_API}/klines"
         params = {"symbol": symbol, "interval": "4h", "limit": 6}
@@ -524,11 +497,9 @@ def detect_social_hype(symbol):
 
 
 def detect_context_pump(df, symbol, ticker_info):
-    """Context پامپ — BTC، F&G، Liquidity"""
     score = 0
     reasons = []
 
-    # BTC
     btc = get_btc_change()
     btc_change = btc["change"]
     if btc_change > 1:
@@ -539,7 +510,6 @@ def detect_context_pump(df, symbol, ticker_info):
     elif btc_change < -3:
         score -= 10
 
-    # Fear & Greed
     fng = get_fng()
     if 30 <= fng <= 75:
         score += 5
@@ -548,7 +518,6 @@ def detect_context_pump(df, symbol, ticker_info):
     elif fng < 25:
         score += 3
 
-    # Liquidity
     volume_24h = ticker_info.get("volume_24h", 0)
     if volume_24h > 100_000_000:
         score += 7
@@ -560,7 +529,6 @@ def detect_context_pump(df, symbol, ticker_info):
 
 
 def detect_pump_score(symbol, cg_id, df, ticker_info, btc_df=None):
-    """امتیاز کامل پامپ (0-100)"""
     forces = {}
     all_reasons = []
 
@@ -585,34 +553,28 @@ def detect_pump_score(symbol, cg_id, df, ticker_info, btc_df=None):
     all_reasons.extend(r5)
 
     total = sum(forces.values())
-
     return total, forces, all_reasons
 
 
 # ═══════════════════════════════════════════
-# تحلیل کامل — هر دو امتیاز
+# تحلیل کامل
 # ═══════════════════════════════════════════
 
 def analyze_coin(symbol, cg_id, df, ticker_info, btc_df=None):
-    """تحلیل کامل — هر دو نوع سیگنال"""
     price = df["close"].iloc[-1]
 
-    # 🌱 Growth
     growth_score, growth_forces, growth_reasons = detect_growth_score(
         symbol, cg_id, df, ticker_info, btc_df
     )
 
-    # 🚀 Pump
     pump_score, pump_forces, pump_reasons = detect_pump_score(
         symbol, cg_id, df, ticker_info, btc_df
     )
 
-    # تغییرات
     change_7d = 0
     if len(df) >= 42:
         change_7d = ((df["close"].iloc[-1] / df["close"].iloc[-42]) - 1) * 100
 
-    # تارگت‌های Growth
     if symbol in ["BTCUSDT", "ETHUSDT"]:
         g_stop, g_tp1, g_tp2, g_tp3 = 0.03, 0.03, 0.06, 0.12
         p_stop, p_tp1, p_tp2, p_tp3 = 0.04, 0.05, 0.10, 0.20
@@ -628,7 +590,6 @@ def analyze_coin(symbol, cg_id, df, ticker_info, btc_df=None):
         "change_7d": float(change_7d),
         "volume_24h": ticker_info.get("volume_24h", 0),
 
-        # 🌱 Growth
         "growth_score": growth_score,
         "growth_forces": growth_forces,
         "growth_reasons": growth_reasons,
@@ -639,7 +600,6 @@ def analyze_coin(symbol, cg_id, df, ticker_info, btc_df=None):
         "growth_tp2": round(price * (1 + g_tp2), 8),
         "growth_tp3": round(price * (1 + g_tp3), 8),
 
-        # 🚀 Pump
         "pump_score": pump_score,
         "pump_forces": pump_forces,
         "pump_reasons": pump_reasons,
@@ -660,7 +620,6 @@ def analyze_coin(symbol, cg_id, df, ticker_info, btc_df=None):
 # ═══════════════════════════════════════════
 
 def passes_growth_filters(coin):
-    """فیلترهای Growth"""
     symbol = coin.get("symbol", "")
     base = symbol.replace("USDT", "")
     if base in STABLECOINS:
@@ -669,7 +628,6 @@ def passes_growth_filters(coin):
     if coin["volume_24h"] < 15_000_000:
         return False
 
-    # Growth نمی‌خواد پامپ‌شده باشه
     if coin["change_24h"] > 5:
         return False
     if coin["change_24h"] < -15:
@@ -681,7 +639,6 @@ def passes_growth_filters(coin):
 
 
 def passes_pump_filters(coin):
-    """فیلترهای Pump"""
     symbol = coin.get("symbol", "")
     base = symbol.replace("USDT", "")
     if base in STABLECOINS:
@@ -690,7 +647,6 @@ def passes_pump_filters(coin):
     if coin["volume_24h"] < 20_000_000:
         return False
 
-    # Pump می‌تونه پامپ‌شده باشه ولی نه خیلی زیاد
     if coin["change_24h"] > 12:
         return False
     if coin["change_24h"] < -10:
