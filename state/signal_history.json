@@ -1,0 +1,76 @@
+{
+  "STRKUSDT": [
+    {
+      "date": "2026-10-16T13:07:19.823465+00:00",
+      "price_at_signal": 0.07599,
+      "score": 71,
+      "entry_low": 0.07561005,
+      "entry_high": 0.07636995,
+      "stop": 0.0721905,
+      "tp1": 0.08168925,
+      "tp2": 0.0873885,
+      "tp3": 0.098787,
+      "forces": {
+        "Volume": 10,
+        "Trend": 11,
+        "Momentum": 6,
+        "Regime": 11,
+        "Liquidity": 18,
+        "BuyPressure": 0,
+        "Trending": 15
+      },
+      "reasons": [
+        "حجم ۷ روزه 1.8x میانگین",
+        "کف‌های اخیر بالاتر",
+        "ADX قوی (36)",
+        "RS vs BTC: +7.5%",
+        "RSI پایین (44)",
+        "BTC مثبت (+1.7%)",
+        "Fear & Greed: 63",
+        "نقدینگی بالا (>$50M)",
+        "اسپرد بسیار کم (0.013%)",
+        "ترند CoinGecko 🔥"
+      ],
+      "result": "OPEN",
+      "result_price": null,
+      "result_date": null
+    }
+  ],
+  "TRXUSDT": [
+    {
+      "date": "2026-10-16T13:07:52.693185+00:00",
+      "price_at_signal": 0.3355,
+      "score": 62,
+      "entry_low": 0.3338225,
+      "entry_high": 0.3371775,
+      "stop": 0.318725,
+      "tp1": 0.3606625,
+      "tp2": 0.385825,
+      "tp3": 0.43615,
+      "forces": {
+        "Volume": 9,
+        "Trend": 6,
+        "Momentum": 3,
+        "Regime": 11,
+        "Liquidity": 15,
+        "BuyPressure": 15,
+        "Trending": 3
+      },
+      "reasons": [
+        "OBV صعودی (تجمع پول)",
+        "کف‌های اخیر بالاتر",
+        "روند صعودی (EMA20 > EMA50)",
+        "RSI متعادل (62)",
+        "MACD مثبت",
+        "BTC مثبت (+1.7%)",
+        "Fear & Greed: 63",
+        "نقدینگی متوسط (>$20M)",
+        "اسپرد بسیار کم (0.030%)",
+        "فشار خرید قوی (66%)"
+      ],
+      "result": "OPEN",
+      "result_price": null,
+      "result_date": null
+    }
+  ]
+}
