@@ -11,7 +11,7 @@ BINANCE_API = "https://data-api.binance.vision/api/v3"
 
 
 def get_top_symbols(limit=100):
-    """لیست ۱۰۰ ارز برتر بر اساس حجم معاملات USDT"""
+    """لیست ارزهای برتر بر اساس حجم معاملات USDT"""
     log.info(f"دریافت {limit} ارز برتر از Binance...")
     try:
         url = f"{BINANCE_API}/ticker/24hr"
@@ -29,7 +29,11 @@ def get_top_symbols(limit=100):
         symbols = []
         for item in usdt_pairs[:limit]:
             symbol = item["symbol"]
+            # فیلتر توکن‌های اهرمی و استیبل‌کوین‌ها
             if any(x in symbol for x in ["UP", "DOWN", "BULL", "BEAR"]):
+                continue
+            base = symbol.replace("USDT", "")
+            if base in ["USDC", "FDUSD", "TUSD", "BUSD", "DAI", "USDP"]:
                 continue
             symbols.append({
                 "symbol": symbol,
@@ -71,17 +75,21 @@ def get_klines(symbol, interval="4h", limit=200):
 
 
 def get_fear_greed_index():
-    """شاخص ترس و طمع از Alternative.me"""
+    """
+    شاخص ترس و طمع از Alternative.me
+    ✅ رایگان، نامحدود، بدون کلید API
+    """
     try:
-        url = "https://api.alternative.me/fng/"
+        url = "https://api.alternative.me/fng/?limit=1"
         response = requests.get(url, timeout=10)
+        response.raise_for_status()
         data = response.json()
-        return {
-            "value": int(data["data"][0]["value"]),
-            "label": data["data"][0]["value_classification"],
-        }
+        value = int(data["data"][0]["value"])
+        label = data["data"][0]["value_classification"]
+        log.info(f"Fear & Greed: {value} ({label})")
+        return {"value": value, "label": label}
     except Exception as e:
-        log.error(f"خطا در دریافت شاخص ترس و طمع: {e}")
+        log.warning(f"خطا در Fear & Greed: {e} — استفاده از پیش‌فرض 50")
         return {"value": 50, "label": "Neutral"}
 
 
