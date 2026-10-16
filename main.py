@@ -30,8 +30,9 @@ log = logging.getLogger(__name__)
 STATE_FILE = "state/last_sent.json"
 os.makedirs("state", exist_ok=True)
 
-MIN_GROWTH_SCORE = 70
-MIN_PUMP_SCORE = 75
+# تنظیمات جدید (پایین‌تر)
+MIN_GROWTH_SCORE = 50
+MIN_PUMP_SCORE = 30
 
 COOLDOWN_GROWTH_HOURS = 24
 COOLDOWN_PUMP_HOURS = 48
@@ -99,7 +100,7 @@ def analyze_all(limit=TOP_SCAN):
                 continue
 
             df = candles_to_df(candles)
-            cg_id = symbol.replace("USDT", "").lower()
+            cg_id = symbol.replace("USDT", "" log).lower()
             analysis = analyze_coin(symbol, cg_id, df, coin, btc_df=btc_df)
             results.append(analysis)
 
@@ -113,6 +114,10 @@ def analyze_all(limit=TOP_SCAN):
 
     return results
 
+
+# ═══════════════════════════════════════════
+# 🌱 پردازش Growth
+# ═══════════════════════════════════════════
 
 async def process_growth_signals(all_results, state):
     log.info("\n" + "=" * 50)
@@ -184,6 +189,10 @@ async def process_growth_signals(all_results, state):
     return sent
 
 
+# ═══════════════════════════════════════════
+# 🚀 پردازش Pump
+# ═══════════════════════════════════════════
+
 async def process_pump_signals(all_results, state):
     log.info("\n" + "=" * 50)
     log.info("🚀 بررسی سیگنال‌های PUMP")
@@ -198,7 +207,7 @@ async def process_pump_signals(all_results, state):
         log.info(f"   • {r['symbol']:12s} — {r['pump_score']:3d}/100")
 
     candidates = [r for r in passed if r["pump_score"] >= MIN_PUMP_SCORE]
-    log.info(f"\n🎯 {len(candidates)} ارز Pump ≥ {MIN_PUMP_SCORE}")
+   .info(f"\n🎯 {len(candidates)} ارز Pump ≥ {MIN_PUMP_SCORE}")
 
     if not candidates:
         log.info("😐 هیچ Pump candidate")
@@ -253,6 +262,10 @@ async def process_pump_signals(all_results, state):
 
     return sent
 
+
+# ═══════════════════════════════════════════
+# اجرا
+# ═══════════════════════════════════════════
 
 async def run():
     log.info("=" * 50)
