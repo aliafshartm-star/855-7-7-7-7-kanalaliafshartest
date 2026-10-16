@@ -1,5 +1,7 @@
 """
-ViaChart Agent v4 — ۷ نیرو + احتمال موفقیت
+ViaChart Agent v5 — دو نوع سیگنال:
+  🌱 Growth
+  🚀 Pump
 """
 import os
 import sys
@@ -11,14 +13,18 @@ from datetime import datetime, timezone, timedelta
 
 from data_fetcher import get_top_symbols, get_klines
 from pump_detector import (
-    candles_to_df, analyze_coin, passes_filters, get_signal_tier,
-    atr as atr_calc, get_btc_change, get_fng
+    candles_to_df, analyze_coin, passes_growth_filters, passes_pump_filters,
+    get_growth_tier, get_pump_tier, atr as atr_calc, get_btc_change, get_fng
 )
 from chart_generator import generate_chart
-from telegram_poster import post_signal
-from signal_history import add_signal, get_all_signals, update_result
-from signal_brain import should_send
-from probability_engine import estimate_probability
+from telegram_poster import post_growth_signal, post_pump_signal
+from signal_history import (
+    add_growth_signal, add_pump_signal, get_all_signals, update_result
+)
+from signal_brain import should_send_growth, should_send_pump
+from probability_engine import (
+    estimate_growth_probability, estimate_pump_probability
+)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 log = logging.getLogger(__name__)
@@ -26,8 +32,13 @@ log = logging.getLogger(__name__)
 STATE_FILE = "state/last_sent.json"
 os.makedirs("state", exist_ok=True)
 
-MIN_SCORE = 80
-COOLDOWN_HOURS = 24
+# تنظیمات
+MIN_GROWTH_SCORE = 70
+MIN_PUMP_SCORE = 75
+
+COOLDOWN_GROWTH_HOURS = 24
+COOLDOWN_PUMP_HOURS = 48
+
 TOP_SCAN = 200
 INTERVAL = "4h"
 KLINE_LIMIT = 200
@@ -41,7 +52,7 @@ def load_state():
                 return json.load(f)
         except Exception:
             pass
-    return {"last_sent": {}}
+    return {"growth_sent": {}, "pump_sent": {}}
 
 
 def save_state(state):
@@ -49,21 +60,26 @@ def save_state(state):
         json.dump(state, f, indent=2)
 
 
-def is_on_cooldown(state, symbol):
-    last_time = state["last_sent"].get(symbol)
+def is_on_cooldown(state, symbol, sig_type):
+    key = f"{sig_type}_sent"
+    last_time = state.get(key, {}).get(symbol)
     if not last_time:
         return False
     try:
         last_dt = datetime.fromisoformat(last_time)
-        if datetime.now(timezone.utc) - last_dt < timedelta(hours=COOLDOWN_HOURS):
+        hours = COOLDOWN_GROWTH_HOURS if sig_type == "growth" else COOLDOWN_PUMP_HOURS
+        if datetime.now(timezone.utc) - last_dt < timedelta(hours=hours):
             return True
     except Exception:
         pass
     return False
 
 
-def mark_sent(state, symbol):
-    state["last_sent"][symbol] = datetime.now(timezone.utc).isoformat()
+def mark_sent(state, symbol, sig_type):
+    key = f"{sig_type}_sent"
+    if key not in state:
+        state[key] = {}
+    state[key][symbol] = datetime.now(timezone.utc).isoformat()
 
 
 def analyze_all(limit=TOP_SCAN):
@@ -82,7 +98,7 @@ def analyze_all(limit=TOP_SCAN):
         symbol = coin["symbol"]
         try:
             candles = get_klines(symbol, INTERVAL, KLINE_LIMIT)
-            if not candles or len(candles) < 60:
+            if not candles or len(candles) < 90:
                 continue
 
             df = candles_to_df(candles)
@@ -101,9 +117,149 @@ def analyze_all(limit=TOP_SCAN):
     return results
 
 
+async def process_growth_signals(all_results, state):
+    """پردازش سیگنال‌های Growth"""
+    log.info("\n" + "=" * 50)
+    log.info("🌱 بررسی سیگنال‌های GROWTH")
+    log.info("=" * 50)
+
+    passed = [r for r in all_results if passes_growth_filters(r)]
+    candidates = [r for r in passed if r["growth_score"] >= MIN_GROWTH_SCORE]
+    candidates.sort(key=lambda x: x["growth_score"], reverse=True)
+
+    log.info(f"✅ {len(candidates)} ارز Growth ≥ {MIN_GROWTH_SCORE}")
+
+    if not candidates:
+        return 0
+
+    log.info("\n🏆 کاندیداهای Growth:")
+    for r in candidates[:10]:
+        log.info(f"   • {r['symbol']:12s} — {r['growth_score']:3d}/100")
+
+    sent = 0
+    for pick in candidates:
+        symbol = pick["symbol"]
+
+        if is_on_cooldown(state, symbol, "growth"):
+            log.info(f"   ⏳ {symbol} در cooldown Growth")
+            continue
+
+        history = get_all_signals(symbol)
+        update_result(symbol, pick["price"])
+        history = get_all_signals(symbol)
+
+        decision = should_send_growth(symbol, pick, history)
+        log.info(f"   🎯 {symbol}: {decision['decision']} — {decision['reason']}")
+
+        if decision["decision"] != "SEND":
+            continue
+
+        # محاسبه احتمال
+        candles = get_klines(symbol, INTERVAL, KLINE_LIMIT)
+        if candles:
+            df_full = candles_to_df(candles)
+            atr_val = atr_calc(df_full).iloc[-1]
+            btc_chg = get_btc_change()["change"]
+            fg = get_fng()
+
+            tp1_prob, tp2_prob, factors = estimate_growth_probability(
+                pick, df_full, atr_val, btc_chg, fg
+            )
+            pick["growth_tp1_prob"] = tp1_prob
+            pick["growth_tp2_prob"] = tp2_prob
+            pick["growth_prob_factors"] = factors
+            log.info(f"   🧠 احتمال: TP1 {tp1_prob}٪ | TP2 {tp2_prob}٪")
+
+        try:
+            chart = generate_chart(symbol, INTERVAL, 150, score_data=pick)
+            ok = await post_growth_signal(pick, chart)
+
+            if ok:
+                add_growth_signal(symbol, pick)
+                mark_sent(state, symbol, "growth")
+                save_state(state)
+                sent += 1
+                log.info(f"   ✅ ارسال Growth موفق")
+                await asyncio.sleep(SEND_DELAY)
+        except Exception as e:
+            log.error(f"   ❌ {symbol}: {e}")
+
+    return sent
+
+
+async def process_pump_signals(all_results, state):
+    """پردازش سیگنال‌های Pump"""
+    log.info("\n" + "=" * 50)
+    log.info("🚀 بررسی سیگنال‌های PUMP")
+    log.info("=" * 50)
+
+    passed = [r for r in all_results if passes_pump_filters(r)]
+    candidates = [r for r in passed if r["pump_score"] >= MIN_PUMP_SCORE]
+    candidates.sort(key=lambda x: x["pump_score"], reverse=True)
+
+    log.info(f"✅ {len(candidates)} ارز Pump ≥ {MIN_PUMP_SCORE}")
+
+    if not candidates:
+        return 0
+
+    log.info("\n🏆 کاندیداهای Pump:")
+    for r in candidates[:10]:
+        log.info(f"   • {r['symbol']:12s} — {r['pump_score']:3d}/100")
+
+    sent = 0
+    for pick in candidates:
+        symbol = pick["symbol"]
+
+        if is_on_cooldown(state, symbol, "pump"):
+            log.info(f"   ⏳ {symbol} در cooldown Pump")
+            continue
+
+        history = get_all_signals(symbol)
+        update_result(symbol, pick["price"])
+        history = get_all_signals(symbol)
+
+        decision = should_send_pump(symbol, pick, history)
+        log.info(f"   🎯 {symbol}: {decision['decision']} — {decision['reason']}")
+
+        if decision["decision"] != "SEND":
+            continue
+
+        # محاسبه احتمال
+        candles = get_klines(symbol, INTERVAL, KLINE_LIMIT)
+        if candles:
+            df_full = candles_to_df(candles)
+            atr_val = atr_calc(df_full).iloc[-1]
+            btc_chg = get_btc_change()["change"]
+            fg = get_fng()
+
+            tp1_prob, tp2_prob, factors = estimate_pump_probability(
+                pick, df_full, atr_val, btc_chg, fg
+            )
+            pick["pump_tp1_prob"] = tp1_prob
+            pick["pump_tp2_prob"] = tp2_prob
+            pick["pump_prob_factors"] = factors
+            log.info(f"   🧠 احتمال: TP1 {tp1_prob}٪ | TP2 {tp2_prob}٪")
+
+        try:
+            chart = generate_chart(symbol, INTERVAL, 150, score_data=pick)
+            ok = await post_pump_signal(pick, chart)
+
+            if ok:
+                add_pump_signal(symbol, pick)
+                mark_sent(state, symbol, "pump")
+                save_state(state)
+                sent += 1
+                log.info(f"   ✅ ارسال Pump موفق")
+                await asyncio.sleep(SEND_DELAY)
+        except Exception as e:
+            log.error(f"   ❌ {symbol}: {e}")
+
+    return sent
+
+
 async def run():
     log.info("=" * 50)
-    log.info("🚀 ViaChart Agent v4 — ۷ نیرو")
+    log.info("🚀 ViaChart Agent v5 — Growth + Pump")
     log.info("=" * 50)
 
     all_results = analyze_all()
@@ -111,77 +267,21 @@ async def run():
         log.warning("⚠️ هیچ ارزی تحلیل نشد")
         return
 
-    passed = [r for r in all_results if passes_filters(r)]
-    log.info(f"✅ {len(passed)} ارز از فیلترها گذشت")
-
-    candidates = [r for r in passed if r["score"] >= MIN_SCORE]
-    candidates.sort(key=lambda x: x["score"], reverse=True)
-
-    log.info(f"🎯 {len(candidates)} ارز امتیاز ≥ {MIN_SCORE}")
-
-    if not candidates:
-        log.info("😐 هیچ سیگنالی نبود")
-        return
-
-    log.info(f"\n🏆 کاندیداها:")
-    for r in candidates[:10]:
-        log.info(f"   • {r['symbol']:12s} — {r['score']:3d}/140")
-
     state = load_state()
-    sent = 0
 
-    for pick in candidates:
-        symbol = pick["symbol"]
-        log.info(f"\n🧠 بررسی {symbol}...")
+    # ۱. اول Growth (کیفیت بالاتر)
+    growth_sent = await process_growth_signals(all_results, state)
 
-        history = get_all_signals(symbol)
-        if history:
-            update_result(symbol, pick["price"])
-            history = get_all_signals(symbol)
+    # ۲. بعد Pump
+    pump_sent = await process_pump_signals(all_results, state)
 
-        decision = should_send(symbol, pick, history)
-        log.info(f"   🎯 Signal Brain: {decision['decision']} — {decision['reason']}")
-
-        if decision["decision"] != "SEND":
-            log.info(f"   ⏭️ رد شد")
-            continue
-
-        log.info(f"   📤 ارسال...")
-        try:
-            # محاسبه احتمال موفقیت
-            candles = get_klines(symbol, INTERVAL, KLINE_LIMIT)
-            if candles:
-                df_full = candles_to_df(candles)
-                atr_val = atr_calc(df_full).iloc[-1]
-                btc_chg = get_btc_change()["change"]
-                fg = get_fng()
-
-                tp1_prob, tp2_prob, prob_factors = estimate_probability(
-                    pick, df_full, atr_val, btc_chg, fg
-                )
-                pick["tp1_prob"] = tp1_prob
-                pick["tp2_prob"] = tp2_prob
-                pick["prob_factors"] = prob_factors
-                log.info(f"   🎯 احتمال TP1: {tp1_prob}٪ | TP2: {tp2_prob}٪")
-
-            chart = generate_chart(symbol, INTERVAL, 150, score_data=pick)
-            ok = await post_signal(pick, chart)
-
-            if ok:
-                add_signal(symbol, pick)
-                mark_sent(state, symbol)
-                save_state(state)
-                sent += 1
-                log.info(f"   ✅ ارسال موفق")
-                await asyncio.sleep(SEND_DELAY)
-        except Exception as e:
-            log.error(f"   ❌ {symbol}: {e}")
-
-    log.info(f"\n✅ {sent} سیگنال ارسال شد")
+    log.info(f"\n{'=' * 50}")
+    log.info(f"✅ جمع: {growth_sent} Growth + {pump_sent} Pump")
+    log.info(f"{'=' * 50}")
 
 
 def main():
-    log.info("🎬 ViaChart Agent v4")
+    log.info("🎬 ViaChart Agent v5")
     try:
         asyncio.run(run())
         log.info("🎉 اجرا تمام شد")
