@@ -1,6 +1,8 @@
 """
-Probability Engine — محاسبه احتمال واقعی TP1/TP2
-بر اساس داده‌های بازار، نه هاردکد
+Probability Engine v2 — احتمال جدا برای:
+  🌱 Growth Signal
+  🚀 Pump Signal
+بر اساس داده‌های واقعی بازار
 """
 import numpy as np
 import logging
@@ -8,32 +10,24 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def estimate_probability(analysis, df, atr_value, btc_change=0.0, fng=50):
-    """
-    محاسبه احتمال TP1 و TP2 بر اساس داده‌های واقعی
+# ═══════════════════════════════════════════
+# 🌱 احتمال موفقیت سیگنال رشد
+# ═══════════════════════════════════════════
 
-    پارامترها:
-    - analysis: dict خروجی analyze_coin
-    - df: DataFrame کندل‌ها
-    - atr_value: ATR فعلی
-    - btc_change: تغییر 24h بیت‌کوین
-    - fng: Fear & Greed Index
+def estimate_growth_probability(coin, df, atr_value, btc_change=0.0, fng=50):
+    """
+    محاسبه احتمال TP1 و TP2 برای سیگنال رشد
 
     Returns:
-    - tp1_prob: احتمال TP1 (0-100)
-    - tp2_prob: احتمال TP2 (0-100)
-    - factors: لیست عوامل موثر
+        tp1_prob, tp2_prob, factors
     """
-    price = analysis["price"]
-    tp1 = analysis["tp1"]
-    tp2 = analysis["tp2"]
-    stop = analysis["stop"]
-    score = analysis["score"]
-    forces = analysis["forces"]
+    price = coin["price"]
+    tp1 = coin["growth_tp1"]
+    tp2 = coin["growth_tp2"]
+    score = coin["growth_score"]
+    forces = coin["growth_forces"]
 
-    # ═══════════════════════════════════════════
     # ۱. فاصله TP از قیمت (نسبت به ATR)
-    # ═══════════════════════════════════════════
     tp1_dist_pct = (tp1 - price) / price
     tp2_dist_pct = (tp2 - price) / price
     atr_pct = atr_value / price if price > 0 else 0.05
@@ -41,110 +35,91 @@ def estimate_probability(analysis, df, atr_value, btc_change=0.0, fng=50):
     tp1_atr_ratio = tp1_dist_pct / atr_pct if atr_pct > 0 else 10
     tp2_atr_ratio = tp2_dist_pct / atr_pct if atr_pct > 0 else 10
 
-    # هرچی TP نزدیک‌تر به ATR، احتمال بیشتر
-    # 1.5 ATR = راحت / 5 ATR = سخت
+    # TP1 نزدیک = احتمال بالا
     if tp1_atr_ratio <= 1.5:
         tp1_dist_score = 25
     elif tp1_atr_ratio <= 2.5:
         tp1_dist_score = 18
     elif tp1_atr_ratio <= 3.5:
         tp1_dist_score = 10
-    elif tp1_atr_ratio <= 5:
-        tp1_dist_score = 3
     else:
-        tp1_dist_score = 0
+        tp1_dist_score = 3
 
     if tp2_atr_ratio <= 2.5:
         tp2_dist_score = 20
     elif tp2_atr_ratio <= 4:
         tp2_dist_score = 12
-    elif tp2_atr_ratio <= 6:
+    else:
         tp2_dist_score = 5
-    else:
-        tp2_dist_score = 0
 
-    # ═══════════════════════════════════════════
-    # ۲. قدرت روند (ADX + EMA)
-    # ═══════════════════════════════════════════
-    trend_score = forces.get("Trend", 0)
-    if trend_score >= 15:
-        trend_bonus = 15
-    elif trend_score >= 10:
-        trend_bonus = 10
-    elif trend_score >= 5:
-        trend_bonus = 5
+    # ۲. Accumulation (وزن بالا برای Growth)
+    accum_score = forces.get("Accumulation", 0)
+    if accum_score >= 20:
+        accum_bonus = 15
+    elif accum_score >= 15:
+        accum_bonus = 10
+    elif accum_score >= 10:
+        accum_bonus = 5
     else:
-        trend_bonus = 0
+        accum_bonus = 0
 
-    # ═══════════════════════════════════════════
-    # ۳. Momentum (RSI + MACD)
-    # ═══════════════════════════════════════════
-    momentum_score = forces.get("Momentum", 0)
-    if momentum_score >= 12:
-        momentum_bonus = 10
-    elif momentum_score >= 8:
-        momentum_bonus = 6
-    elif momentum_score >= 5:
-        momentum_bonus = 3
+    # ۳. Structure
+    structure_score = forces.get("Structure", 0)
+    if structure_score >= 15:
+        structure_bonus = 12
+    elif structure_score >= 10:
+        structure_bonus = 8
+    elif structure_score >= 5:
+        structure_bonus = 4
     else:
-        momentum_bonus = 0
+        structure_bonus = 0
 
-    # ═══════════════════════════════════════════
-    # ۴. فشار خرید (Buy Pressure)
-    # ═══════════════════════════════════════════
-    buy_pressure = forces.get("BuyPressure", 0)
-    if buy_pressure >= 12:
-        bp_bonus = 8
-    elif buy_pressure >= 8:
-        bp_bonus = 5
-    elif buy_pressure >= 5:
-        bp_bonus = 2
-    else:
-        bp_bonus = 0
-
-    # ═══════════════════════════════════════════
-    # ۵. وضعیت بازار (Regime)
-    # ═══════════════════════════════════════════
-    regime_score = forces.get("Regime", 0)
-    if regime_score >= 15:
-        regime_bonus = 10
-    elif regime_score >= 10:
-        regime_bonus = 5
-    elif regime_score >= 5:
-        regime_bonus = 0
-    else:
-        regime_bonus = -10  # بازار خرابه
-
-    # ═══════════════════════════════════════════
-    # ۶. حجم (Volume)
-    # ═══════════════════════════════════════════
+    # ۴. Volume (آروم، نه spike)
     vol_score = forces.get("Volume", 0)
     if vol_score >= 15:
-        vol_bonus = 8
+        vol_bonus = 10
     elif vol_score >= 10:
-        vol_bonus = 4
+        vol_bonus = 6
     elif vol_score >= 5:
-        vol_bonus = 2
+        vol_bonus = 3
     else:
         vol_bonus = 0
 
-    # ═══════════════════════════════════════════
-    # ۷. بایاس BTC (سنگین)
-    # ═══════════════════════════════════════════
+    # ۵. Momentum آروم
+    mom_score = forces.get("Momentum", 0)
+    if mom_score >= 12:
+        mom_bonus = 8
+    elif mom_score >= 8:
+        mom_bonus = 5
+    elif mom_score >= 5:
+        mom_bonus = 2
+    else:
+        mom_bonus = 0
+
+    # ۶. Context
+    ctx_score = forces.get("Context", 0)
+    if ctx_score >= 15:
+        ctx_bonus = 10
+    elif ctx_score >= 10:
+        ctx_bonus = 6
+    elif ctx_score >= 5:
+        ctx_bonus = 2
+    else:
+        ctx_bonus = 0
+
+    # ۷. BTC bias
     if btc_change > 2:
-        btc_bonus = 10
+        btc_bonus = 8
     elif btc_change > 0.5:
-        btc_bonus = 5
+        btc_bonus = 4
     elif btc_change > -1:
         btc_bonus = 0
     elif btc_change > -3:
         btc_bonus = -10
     else:
-        btc_bonus = -25  # BTC ریخته، احتمال کم
+        btc_bonus = -25
 
-    # ═══════════════════════════════════════════
     # ۸. Fear & Greed
-    # ═══════════════════════════════════════════
     if 25 <= fng <= 65:
         fng_bonus = 5
     elif fng < 25:
@@ -154,63 +129,200 @@ def estimate_probability(analysis, df, atr_value, btc_change=0.0, fng=50):
     else:
         fng_bonus = 0
 
-    # ═══════════════════════════════════════════
-    # محاسبه احتمال نهایی
-    # ═══════════════════════════════════════════
-    # پایه ۴۵٪
-    base_tp1 = 45
-    base_tp2 = 30
+    # محاسبه
+    base_tp1 = 55  # پایه بالاتر چون Growth پایدارتره
+    base_tp2 = 35
 
-    # عوامل موثر
-    tp1_factors = (
-        tp1_dist_score +  # فاصله ATR
-        trend_bonus +
-        momentum_bonus +
-        bp_bonus +
-        vol_bonus
-    )
+    tp1_factors = tp1_dist_score + accum_bonus + structure_bonus + vol_bonus + mom_bonus
+    tp2_factors = tp2_dist_score + accum_bonus + structure_bonus + vol_bonus + mom_bonus
 
-    tp2_factors = (
-        tp2_dist_score +
-        trend_bonus +
-        momentum_bonus +
-        bp_bonus +
-        vol_bonus
-    )
-
-    # BTC و Regime و FNG
-    global_factors = regime_bonus + btc_bonus + fng_bonus
+    global_factors = ctx_bonus + btc_bonus + fng_bonus
 
     tp1_prob = base_tp1 + tp1_factors + global_factors
     tp2_prob = base_tp2 + tp2_factors + global_factors
 
-    # محدودیت (5-90)
-    tp1_prob = max(5, min(90, tp1_prob))
-    tp2_prob = max(5, min(85, tp2_prob))
+    tp1_prob = max(10, min(92, tp1_prob))
+    tp2_prob = max(10, min(85, tp2_prob))
 
-    # TP2 همیشه کمتر از TP1
     if tp2_prob >= tp1_prob:
-        tp2_prob = tp1_prob - 15
+        tp2_prob = tp1_prob - 12
 
-    # ═══════════════════════════════════════════
-    # دلایل
-    # ═══════════════════════════════════════════
+    # عوامل
     factors = []
-
     if tp1_atr_ratio <= 2:
         factors.append(f"TP نزدیک ({tp1_atr_ratio:.1f}x ATR)")
-    elif tp1_atr_ratio > 4:
-        factors.append(f"TP دور ({tp1_atr_ratio:.1f}x ATR)")
-
-    if trend_score >= 12:
-        factors.append("روند قوی")
-    if momentum_score >= 10:
-        factors.append("مومنتوم قوی")
-    if buy_pressure >= 10:
-        factors.append("فشار خرید بالا")
+    if accum_score >= 15:
+        factors.append("Accumulation قوی")
+    if structure_score >= 12:
+        factors.append("ساختار صعودی")
+    if vol_score >= 12:
+        factors.append("حجم صعودی")
     if btc_change > 1:
         factors.append("BTC صعودی")
     elif btc_change < -2:
         factors.append("BTC نزولی")
 
     return round(tp1_prob), round(tp2_prob), factors
+
+
+# ═══════════════════════════════════════════
+# 🚀 احتمال موفقیت سیگنال پامپ
+# ═══════════════════════════════════════════
+
+def estimate_pump_probability(coin, df, atr_value, btc_change=0.0, fng=50):
+    """
+    محاسبه احتمال TP1 و TP2 برای سیگنال پامپ
+
+    Returns:
+        tp1_prob, tp2_prob, factors
+    """
+    price = coin["price"]
+    tp1 = coin["pump_tp1"]
+    tp2 = coin["pump_tp2"]
+    score = coin["pump_score"]
+    forces = coin["pump_forces"]
+
+    # ۱. فاصله TP (پامپ TP دورتره)
+    tp1_dist_pct = (tp1 - price) / price
+    tp2_dist_pct = (tp2 - price) / price
+    atr_pct = atr_value / price if price > 0 else 0.05
+
+    tp1_atr_ratio = tp1_dist_pct / atr_pct if atr_pct > 0 else 10
+    tp2_atr_ratio = tp2_dist_pct / atr_pct if atr_pct > 0 else 10
+
+    if tp1_atr_ratio <= 2.0:
+        tp1_dist_score = 25
+    elif tp1_atr_ratio <= 3.5:
+        tp1_dist_score = 15
+    elif tp1_atr_ratio <= 5:
+        tp1_dist_score = 8
+    else:
+        tp1_dist_score = 2
+
+    if tp2_atr_ratio <= 4:
+        tp2_dist_score = 18
+    elif tp2_atr_ratio <= 6:
+        tp2_dist_score = 10
+    else:
+        tp2_dist_score = 3
+
+    # ۲. Volume Spike (وزن بالا)
+    vs_score = forces.get("VolumeSpike", 0)
+    if vs_score >= 20:
+        vs_bonus = 15
+    elif vs_score >= 15:
+        vs_bonus = 10
+    elif vs_score >= 10:
+        vs_bonus = 5
+    else:
+        vs_bonus = 0
+
+    # ۳. Breakout
+    breakout_score = forces.get("Breakout", 0)
+    if breakout_score >= 15:
+        breakout_bonus = 12
+    elif breakout_score >= 10:
+        breakout_bonus = 8
+    elif breakout_score >= 5:
+        breakout_bonus = 4
+    else:
+        breakout_bonus = 0
+
+    # ۴. Momentum
+    mom_score = forces.get("Momentum", 0)
+    if mom_score >= 15:
+        mom_bonus = 10
+    elif mom_score >= 10:
+        mom_bonus = 6
+    elif mom_score >= 5:
+        mom_bonus = 2
+    else:
+        mom_bonus = 0
+
+    # ۵. Social
+    social_score = forces.get("Social", 0)
+    if social_score >= 12:
+        social_bonus = 8
+    elif social_score >= 8:
+        social_bonus = 5
+    elif social_score >= 4:
+        social_bonus = 2
+    else:
+        social_bonus = 0
+
+    # ۶. Context
+    ctx_score = forces.get("Context", 0)
+    if ctx_score >= 15:
+        ctx_bonus = 8
+    elif ctx_score >= 10:
+        ctx_bonus = 5
+    elif ctx_score >= 5:
+        ctx_bonus = 2
+    else:
+        ctx_bonus = 0
+
+    # ۷. BTC bias (برای پامپ حیاتی‌تر)
+    if btc_change > 2:
+        btc_bonus = 12
+    elif btc_change > 0.5:
+        btc_bonus = 5
+    elif btc_change > -1:
+        btc_bonus = 0
+    elif btc_change > -3:
+        btc_bonus = -15
+    else:
+        btc_bonus = -30
+
+    # ۸. Fear & Greed (پامپ تو F&G پایین بهتره)
+    if fng < 30:
+        fng_bonus = 8
+    elif fng < 60:
+        fng_bonus = 3
+    elif fng > 80:
+        fng_bonus = -10
+    else:
+        fng_bonus = 0
+
+    # محاسبه (پامپ پایه کمتره)
+    base_tp1 = 45
+    base_tp2 = 25
+
+    tp1_factors = tp1_dist_score + vs_bonus + breakout_bonus + mom_bonus + social_bonus
+    tp2_factors = tp2_dist_score + vs_bonus + breakout_bonus + mom_bonus + social_bonus
+
+    global_factors = ctx_bonus + btc_bonus + fng_bonus
+
+    tp1_prob = base_tp1 + tp1_factors + global_factors
+    tp2_prob = base_tp2 + tp2_factors + global_factors
+
+    tp1_prob = max(10, min(88, tp1_prob))
+    tp2_prob = max(5, min(80, tp2_prob))
+
+    if tp2_prob >= tp1_prob:
+        tp2_prob = tp1_prob - 15
+
+    # عوامل
+    factors = []
+    if vs_score >= 15:
+        factors.append("Volume Spike قوی")
+    if breakout_score >= 12:
+        factors.append("Breakout تأیید شده")
+    if mom_score >= 12:
+        factors.append("مومنتوم قوی")
+    if social_score >= 10:
+        factors.append("Hype بالا")
+    if btc_change > 1:
+        factors.append("BTC صعودی")
+    elif btc_change < -2:
+        factors.append("BTC نزولی — خطر")
+
+    return round(tp1_prob), round(tp2_prob), factors
+
+
+# ═══════════════════════════════════════════
+# تابع قدیمی (برای سازگاری)
+# ═══════════════════════════════════════════
+
+def estimate_probability(analysis, df, atr_value, btc_change=0.0, fng=50):
+    """سازگاری با کد قدیمی — از Growth استفاده می‌کنه"""
+    return estimate_growth_probability(analysis, df, atr_value, btc_change, fng)
