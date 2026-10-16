@@ -1,5 +1,5 @@
 """
-ارسال سیگنال به کانال — فارسی، TP1 و TP2
+ارسال سیگنال به کانال — فارسی، TP1 و TP2 + احتمال موفقیت
 """
 import os
 import logging
@@ -62,6 +62,10 @@ def build_signal_post(a):
     tp1 = a["tp1"]
     tp2 = a["tp2"]
 
+    tp1_prob = a.get("tp1_prob")
+    tp2_prob = a.get("tp2_prob")
+    prob_factors = a.get("prob_factors", [])
+
     if score >= 110:
         tier = "TIER 1 🔥"
     elif score >= 95:
@@ -88,6 +92,25 @@ def build_signal_post(a):
     parts.append("")
     parts.append("🎯 امتیاز: <b>" + str(score) + "/140</b>")
     parts.append("")
+
+    # احتمال موفقیت
+    if tp1_prob and tp2_prob:
+        parts.append("━━━━━━━━━━━━━━━")
+        parts.append("🧠 <b>تحلیل احتمال موفقیت</b>")
+        parts.append("━━━━━━━━━━━━━━━")
+        parts.append(f"📊 TP1: <b>~{tp1_prob}٪</b>")
+        parts.append(f"📊 TP2: <b>~{tp2_prob}٪</b>")
+
+        if prob_factors:
+            parts.append("")
+            parts.append("عوامل موثر:")
+            for factor in prob_factors[:3]:
+                parts.append("   • " + factor)
+
+        parts.append("")
+        parts.append("<i>⚠️ این احتمال تخمینی بر اساس داده‌های فعلیه، نه تضمین</i>")
+        parts.append("")
+
     parts.append("━━━━━━━━━━━━━━━")
     parts.append("💰 <b>پلن معاملاتی</b>")
     parts.append("━━━━━━━━━━━━━━━")
