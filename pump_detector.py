@@ -15,6 +15,8 @@ log = logging.getLogger(__name__)
 BINANCE_API = "https://data-api.binance.vision/api/v3"
 COINGECKO_API = "https://api.coingecko.com/api/v3"
 
+STABLECOINS = ["USDC", "FDUSD", "TUSD", "BUSD", "DAI", "USDP", "USTC", "USDD", "PYUSD"]
+
 
 def candles_to_df(candles):
     df = pd.DataFrame(candles)
@@ -127,7 +129,7 @@ def get_fng():
     if _cache["fng"]["data"] and (now - _cache["fng"]["time"]) < 3600:
         return _cache["fng"]["data"]
     try:
-        r = requests.get("https://api.alternative.me/fng/", timeout=10)
+        r = requests.get("https://api.alternative.me/fng/?limit=1", timeout=10)
         data = r.json()
         result = int(data["data"][0]["value"])
         _cache["fng"]["data"] = result
@@ -152,7 +154,6 @@ def get_btc_dominance():
         return 50.0
 
 
-# ═══════ نیرو ۱: Volume Accumulation (0-20) ═══════
 def detect_volume_accumulation(df):
     score = 0
     reasons = []
@@ -194,7 +195,6 @@ def detect_volume_accumulation(df):
     return min(20, score), reasons
 
 
-# ═══════ نیرو ۲: Trend Strength + RS vs BTC (0-20) ═══════
 def detect_trend_strength(df, symbol, btc_df=None):
     score = 0
     reasons = []
@@ -248,7 +248,6 @@ def detect_trend_strength(df, symbol, btc_df=None):
     return max(0, min(20, score)), reasons
 
 
-# ═══════ نیرو ۳: Momentum + MACD + Stochastic (0-20) ═══════
 def detect_momentum(df):
     score = 0
     reasons = []
@@ -289,7 +288,6 @@ def detect_momentum(df):
     return max(0, min(20, score)), reasons
 
 
-# ═══════ نیرو ۴: Market Regime + BTC Dominance (0-20) ═══════
 def detect_market_regime():
     score = 0
     reasons = []
@@ -329,7 +327,6 @@ def detect_market_regime():
     return max(0, min(20, score)), reasons
 
 
-# ═══════ نیرو ۵: Liquidity Edge (0-20) ═══════
 def detect_liquidity(symbol, volume_24h):
     score = 0
     reasons = []
@@ -369,7 +366,6 @@ def detect_liquidity(symbol, volume_24h):
     return max(0, min(20, score)), reasons
 
 
-# ═══════ نیرو ۶: Buy/Sell Pressure (0-20) ═══════
 def detect_buy_sell_pressure(symbol):
     score = 0
     reasons = []
@@ -413,7 +409,6 @@ def detect_buy_sell_pressure(symbol):
     return max(0, min(20, score)), reasons
 
 
-# ═══════ نیرو ۷: Trending (0-20) ═══════
 def detect_trending(symbol):
     score = 0
     reasons = []
@@ -423,14 +418,13 @@ def detect_trending(symbol):
 
     if coin in trending:
         score += 15
-        reasons.append("ترند CoinGecko 🔥")
+        reasons.append("ترند CoinGecko")
     else:
         score += 3
 
     return max(0, min(20, score)), reasons
 
 
-# ═══════ تحلیل کامل ═══════
 def analyze_coin(symbol, cg_id, df, ticker_info, btc_df=None):
     forces = {}
     all_reasons = []
@@ -506,6 +500,11 @@ def analyze_coin(symbol, cg_id, df, ticker_info, btc_df=None):
 
 
 def passes_filters(coin):
+    symbol = coin.get("symbol", "")
+    base = symbol.replace("USDT", "")
+    if base in STABLECOINS:
+        return False
+
     if coin["volume_24h"] < 15_000_000:
         return False
     if coin["change_24h"] > 5:
@@ -525,10 +524,10 @@ def passes_filters(coin):
 
 
 def get_signal_tier(score):
-    if score >= 100:
+    if score >= 110:
         return "TIER 1"
-    elif score >= 80:
+    elif score >= 95:
         return "TIER 2"
-    elif score >= 60:
+    elif score >= 80:
         return "TIER 3"
     return "NO SIGNAL"
