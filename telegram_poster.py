@@ -1,5 +1,5 @@
 """
-ارسال سیگنال به کانال — قالب فارسی
+ارسال سیگنال به کانال — فارسی، TP1 و TP2
 """
 import os
 import logging
@@ -61,7 +61,6 @@ def build_signal_post(a):
     stop = a["stop"]
     tp1 = a["tp1"]
     tp2 = a["tp2"]
-    tp3 = a["tp3"]
 
     if score >= 110:
         tier = "TIER 1 🔥"
@@ -97,7 +96,6 @@ def build_signal_post(a):
     parts.append("✅ <b>اهداف:</b>")
     parts.append("   TP1: <b>" + _fmt(tp1) + "</b> (" + _pct(entry_high, tp1) + ")")
     parts.append("   TP2: <b>" + _fmt(tp2) + "</b> (" + _pct(entry_high, tp2) + ")")
-    parts.append("   TP3: <b>" + _fmt(tp3) + "</b> (" + _pct(entry_high, tp3) + ")")
     parts.append("")
     parts.append("🛑 حد ضرر: <b>" + _fmt(stop) + "</b> (" + _pct(entry_high, stop) + ")")
     parts.append("")
