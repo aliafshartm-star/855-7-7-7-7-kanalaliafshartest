@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 STATE_FILE = "state/last_sent.json"
 os.makedirs("state", exist_ok=True)
 
-MIN_SCORE = 60
+MIN_SCORE = 80
 COOLDOWN_HOURS = 24
 TOP_SCAN = 200
 INTERVAL = "4h"
